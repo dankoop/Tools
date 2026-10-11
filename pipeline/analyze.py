@@ -60,6 +60,20 @@ def indices(bands, valid):
     return out
 
 # ----------------------------------------------------------------------------- composites
+def fast_nanmedian(a):
+    """Median over axis 0 ignoring NaN; much faster than np.nanmedian for a few layers."""
+    n = a.shape[0]
+    if n == 1:
+        return a[0].copy()
+    finite = np.isfinite(a)
+    cnt = finite.sum(axis=0)
+    s = np.sort(np.where(finite, a, np.inf).transpose(1, 2, 0).copy(), axis=-1)   # [H, W, n]
+    lo = np.maximum((cnt - 1) // 2, 0); hi = cnt // 2
+    vlo = np.take_along_axis(s, lo[..., None], axis=-1)[..., 0]
+    vhi = np.take_along_axis(s, hi[..., None], axis=-1)[..., 0]
+    med = (vlo + vhi) / 2
+    return np.where(cnt > 0, med, np.nan).astype(np.float32)
+
 def current_bins(dates):
     """Weekly bins for the current season: [Sep1-14 baseline], then 7-day bins to the last date."""
     bins = [("Sep 1-14", "09-01", "09-14")]
@@ -121,7 +135,7 @@ def composite(stackdir, out_path, mode):
         if not acc["ndvi"]:
             res[lab] = None; continue
         with np.errstate(all="ignore"):
-            comp = {k: np.nanmedian(np.stack(acc[k]), axis=0).astype(np.float32) for k in INDEX_NAMES}
+            comp = {k: fast_nanmedian(np.stack(acc[k])) for k in INDEX_NAMES}
         comp["nobs"] = np.sum([np.isfinite(a) for a in acc["ndvi"]], axis=0).astype(np.uint8)
         res[lab] = comp
         print(f"  bin {lab}: {len(sel)} scenes, coverage {np.isfinite(comp['ndvi']).mean():.3f}", flush=True)
