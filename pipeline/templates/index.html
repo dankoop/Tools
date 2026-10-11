@@ -142,10 +142,11 @@ td.n{font-family:var(--mono);text-align:right}th.n{text-align:right}
     <button class="tab" role="tab" data-tab="reports">Reports</button>
     <button class="tab" role="tab" data-tab="about">Method</button>
   </div>
-  <div class="sheet-body" id="sheet-body"></div>
+  <div class="sheet-body" id="sheet-body"><p class="muted">Loading map data…</p></div>
 </section>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- Leaflet 1.9.4 (inlined so the page works with no outside script host; BSD-2-Clause, (c) 2010-2023 Vladimir Agafonkin) -->
+<script>{{LEAFLET_JS}}</script>
 <script>
 (async function(){
 const $=s=>document.querySelector(s);
@@ -160,7 +161,8 @@ try{
     clusters[r]=await fetch(`data/clusters_${r}.geojson`).then(r=>r.json()).catch(()=>({features:[]}));
     dests[r]=await fetch(`data/destinations_${r}.geojson`).then(r=>r.json()).catch(()=>({features:[]}));
   }
-}catch(e){ $('#sheet-body').innerHTML='<p class="note">Could not load map data ('+e.message+'). The data files must sit next to this page under data/.</p>'; return; }
+}catch(e){ $('#sheet-body').innerHTML='<p class="note">Could not load the map data ('+e.message+'). The data files must sit next to this page under data/. If you are viewing a preview, open the full page.</p>'; return; }
+if(typeof L==='undefined'){ $('#sheet-body').innerHTML='<p class="note">The map library did not load in this viewer.</p>'; return; }
 const regions=Object.keys(site.regions); const hasCounty=regions.includes('county');
 const weeks=(site.regions.seattle||site.regions.county).weeks;
 const summary=site.summary.seattle||site.summary.county||{};

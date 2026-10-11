@@ -200,7 +200,7 @@ def main():
     with np.errstate(all="ignore"):
         hrrr = dict(days=[f"{d[:4]}-{d[4:6]}-{d[6:]}" for d in days],
                     county_mean_tmin=[round(float(np.nanmean(a)), 1) for a in TMIN],
-                    county_mean_tmax=[round(float(np.nanmean(a)), 1) for a in TMAX],
+                    county_mean_tmax=[None if np.all(np.isnan(a)) else round(float(np.nanmean(a)), 1) for a in TMAX],
                     county_max_gust_ms=[round(float(np.nanmax(a)), 1) for a in GUST],
                     lowland_mean_tmin=None)
     gfs, cycle = gfs_forecast(POINTS)
