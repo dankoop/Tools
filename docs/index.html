@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Seattle Fall Color Sentinel</title>
 <meta name="description" content="Where fall colour is turning across Seattle and King County, from Sentinel-2 imagery, tree phenology and weather.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -15,6 +17,8 @@
 html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.4;overflow:hidden}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
+.leaflet-top.leaflet-right{margin-top:calc(46px + env(safe-area-inset-top,0px))}
 button,select,input{font:inherit;color:inherit}
 h1,h2,h3{margin:0;text-wrap:balance}
 #map{position:absolute;inset:0;background:#0b0f14}
@@ -92,7 +96,7 @@ td.n{font-family:var(--mono);text-align:right}th.n{text-align:right}
 .leaflet-control-attribution{background:rgba(0,0,0,.45)!important;color:#ccc!important;font-size:10px}
 .leaflet-control-attribution a{color:#ddd!important}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-@media (max-width:640px){.brand small{display:none}.legend{bottom:calc(var(--sheet) + 60px);font-size:11px}.topbar .chip.obs{display:none}}
+@media (max-width:640px){:root{--sheet:34vh}.brand small{display:none}.brand h1{font-size:17px}.legend{bottom:calc(var(--sheet) + 60px);font-size:11px}.topbar .chip.obs{display:none}}
 @media (prefers-reduced-motion:reduce){.sheet{transition:none}}
 /* --- Leaflet 1.9.4 stylesheet (inlined; BSD-2-Clause, (c) 2010-2023 Vladimir Agafonkin) --- */
 /* required styles */
@@ -833,7 +837,7 @@ const regions=Object.keys(site.regions); const hasCounty=regions.includes('count
 const weeks=(site.regions.seattle||site.regions.county).weeks;
 const summary=site.summary.seattle||site.summary.county||{};
 $('#obs-date').textContent=summary.latest_obs||'–';
-document.documentElement.style.setProperty('--sheet','46vh');
+document.documentElement.style.setProperty('--sheet',innerWidth<640?'34vh':'46vh');
 
 // ---------------------------------------------------------------- map
 const map=L.map('map',{zoomControl:false,attributionControl:true,minZoom:8,maxZoom:16});
