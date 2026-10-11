@@ -1,0 +1,106 @@
+"""Render analysis rasters to Web-Mercator PNG/JPEG overlays for the Leaflet map.
+
+Usage: python render.py REGION ANALYSIS.npz OUTDIR [--max-px 3000]
+Writes OUTDIR/<region>/<layer>.png|jpg and OUTDIR/<region>/layers.json (bounds + legend info).
+"""
+import os, sys, json, argparse
+import numpy as np, rasterio
+from rasterio.warp import reproject, Resampling, calculate_default_transform
+from rasterio.transform import Affine
+from PIL import Image
+import config as C
+
+RAMP_CS = [(0.10, 0.50, 0.15), (0.95, 0.85, 0.10), (0.98, 0.55, 0.05), (0.85, 0.10, 0.05)]      # green→yellow→orange→red
+STAGE_COL = {1: (70, 140, 60), 2: (240, 210, 40), 3: (235, 90, 20), 4: (120, 85, 60)}
+RAMP_DIV = [(0.10, 0.35, 0.75), (0.93, 0.93, 0.90), (0.80, 0.15, 0.10)]                           # blue→white→red
+RAMP_PEAK = [(0.55, 0.20, 0.55), (0.90, 0.30, 0.10), (0.98, 0.80, 0.10), (0.35, 0.60, 0.25), (0.10, 0.30, 0.55)]  # past→now→soon→later→far
+
+def ramp(x, ramp_cols):
+    x = np.clip(x, 0, 1) * (len(ramp_cols) - 1); i = np.clip(x.astype(int), 0, len(ramp_cols) - 2); f = (x - i)[..., None]
+    rc = np.array(ramp_cols)
+    return (rc[i] * (1 - f) + rc[i + 1] * f) * 255
+
+def warp(a, src_T, src_crs, dst_T, dst_crs, shape, resampling, nodata=0):
+    out = np.full(shape, nodata, a.dtype)
+    reproject(a, out, src_transform=src_T, src_crs=src_crs, dst_transform=dst_T, dst_crs=dst_crs,
+              resampling=resampling, src_nodata=nodata, dst_nodata=nodata)
+    return out
+
+def main():
+    ap = argparse.ArgumentParser(); ap.add_argument("region"); ap.add_argument("npz"); ap.add_argument("outdir")
+    ap.add_argument("--max-px", type=int, default=3200)
+    a = ap.parse_args()
+    z = np.load(a.npz); T = Affine(*z["transform"][:6]); res = int(z["res"])
+    H, W = z["veg"].shape
+    out = os.path.join(a.outdir, a.region); os.makedirs(out, exist_ok=True)
+    dst_crs = "EPSG:3857"
+    dst_T, dw, dh = calculate_default_transform(C.UTM, dst_crs, W, H, left=T.c, bottom=T.f + H * T.e, right=T.c + W * T.a, top=T.f)
+    scale = max(dw, dh) / a.max_px
+    if scale > 1:
+        dst_T = Affine(dst_T.a * scale, 0, dst_T.c, 0, dst_T.e * scale, dst_T.f); dw, dh = int(dw / scale), int(dh / scale)
+    shape = (dh, dw)
+    bounds = rasterio.transform.array_bounds(dh, dw, dst_T)   # (west, south, east, north) in 3857
+    from pyproj import Transformer
+    to_ll = Transformer.from_crs(dst_crs, 4326, always_xy=True)
+    w, s = to_ll.transform(bounds[0], bounds[1]); e, n = to_ll.transform(bounds[2], bounds[3])
+    layers = {"bounds": [[s, w], [n, e]], "width": dw, "height": dh, "layers": {}}
+    veg = warp(z["veg"].astype(np.uint8), T, C.UTM, dst_T, dst_crs, shape, Resampling.nearest).astype(bool)
+
+    def save_rgba(name, rgb, alpha, fmt="png"):
+        img = np.dstack([np.clip(rgb, 0, 255).astype(np.uint8), (alpha * 255).astype(np.uint8)])
+        p = os.path.join(out, f"{name}.{fmt}")
+        if fmt == "png":
+            Image.fromarray(img, "RGBA").quantize(colors=255, method=Image.Quantize.FASTOCTREE).save(p, optimize=True)
+        else:
+            Image.fromarray(img[..., :3], "RGB").save(p, quality=82)
+        return os.path.basename(p)
+
+    def q(a8, lo, hi):   # undo q8 quantisation
+        return np.where(a8 > 0, (a8.astype(np.float32) - 1) / 254 * (hi - lo) + lo, np.nan)
+
+    def continuous(name, key, lo, hi, ramp_cols, title, labels, mask_veg=True, alpha_from=None):
+        a8 = warp(z[key], T, C.UTM, dst_T, dst_crs, shape, Resampling.average)
+        v = q(a8, lo, hi); m = np.isfinite(v) & (veg if mask_veg else True)
+        x = (v - lo) / (hi - lo)
+        rgb = ramp(np.nan_to_num(x), ramp_cols)
+        alpha = m.astype(np.float32) * (0.92 if alpha_from is None else np.clip(alpha_from(x), 0.15, 0.95))
+        layers["layers"][name] = dict(file=save_rgba(name, rgb, alpha), title=title, legend=dict(type="ramp", colors=[[int(c * 255) for c in rc] for rc in ramp_cols], labels=labels))
+
+    continuous("cs_now", "cs_now", 0, 1, RAMP_CS, "Fall colour now", ["green", "turning", "peak", "deep red"], alpha_from=lambda x: 0.25 + 0.75 * x)
+    continuous("dhue", "dhue", -10, 60, RAMP_CS, "Hue shift since early Sept (°)", ["0°", "+20°", "+40°", "+60°"])
+    continuous("dndvi", "dndvi", -0.6, 0.2, RAMP_DIV[::-1], "NDVI change since early Sept", ["-0.6 (leaf-off)", "0", "+0.2"])
+    continuous("velocity", "velocity", -0.05, 0.15, RAMP_CS, "Change velocity (PSRI per week)", ["steady", "slow", "fast", "very fast"])
+    continuous("decid", "decid", 0, 1, [(0.15, 0.35, 0.15), (0.6, 0.75, 0.3), (0.95, 0.8, 0.2)], "Deciduous likelihood", ["evergreen", "mixed", "deciduous"])
+    continuous("confidence", "confidence", 0, 1, [(0.4, 0.4, 0.4), (0.2, 0.6, 0.8)], "Prediction confidence", ["low", "high"])
+    # days to peak: diverging categorical ramp, only where deciduous
+    a8 = warp(z["days_to_peak"], T, C.UTM, dst_T, dst_crs, shape, Resampling.average); v = q(a8, -21, 35)
+    m = np.isfinite(v) & veg
+    rgb = ramp(np.nan_to_num((v + 21) / 56), RAMP_PEAK)
+    layers["layers"]["days_to_peak"] = dict(file=save_rgba("days_to_peak", rgb, m * 0.9), title="Predicted days to peak colour",
+        legend=dict(type="ramp", colors=[[int(c * 255) for c in rc] for rc in RAMP_PEAK], labels=["past peak", "peak now", "+1 wk", "+2-3 wk", "+4 wk+"]))
+    # stage (now)
+    def stage_layer(name, st8):
+        st = warp(st8, T, C.UTM, dst_T, dst_crs, shape, Resampling.mode)
+        rgb = np.zeros(shape + (3,), np.float32)
+        for k_, col in STAGE_COL.items():
+            rgb[st == k_] = col
+        return save_rgba(name, rgb, (st > 0) * 0.85)
+    layers["layers"]["stage"] = dict(file=stage_layer("stage", z["stage"]), title="Colour stage now",
+        legend=dict(type="classes", items=[["green / evergreen", STAGE_COL[1]], ["turning", STAGE_COL[2]], ["peak colour", STAGE_COL[3]], ["past peak / leaf-off", STAGE_COL[4]]]))
+    # weekly layers
+    weeks = []
+    for lab in z["bins"]:
+        lab = str(lab); slug = lab.replace(" ", "_").replace("-", "_")
+        cs8 = warp(z[f"wk|{lab}|cs"], T, C.UTM, dst_T, dst_crs, shape, Resampling.average); v = q(cs8, 0, 1); m = np.isfinite(v) & veg
+        f_cs = save_rgba(f"wk_{slug}_cs", ramp(np.nan_to_num(v), RAMP_CS), m * np.clip(0.25 + 0.75 * np.nan_to_num(v), 0, 0.95))
+        f_st = stage_layer(f"wk_{slug}_stage", z[f"wk|{lab}|stage"])
+        rgb = np.stack([warp(z[f"wk|{lab}|rgb"][i], T, C.UTM, dst_T, dst_crs, shape, Resampling.average) for i in range(3)], axis=-1)
+        f_rgb = save_rgba(f"wk_{slug}_rgb", rgb, (rgb.max(axis=-1) > 0) * 1.0, fmt="jpg")
+        cov = float(m[veg].mean()) if veg.any() else 0
+        weeks.append(dict(label=lab, cs=f_cs, stage=f_st, rgb=f_rgb, coverage=round(cov, 3)))
+    layers["weeks"] = weeks
+    json.dump(layers, open(os.path.join(out, "layers.json"), "w"), indent=1)
+    print(a.region, "rendered", dw, "x", dh, "->", out, [f"{k}: {os.path.getsize(os.path.join(out, v['file'])) // 1024} KB" for k, v in layers["layers"].items()][:4])
+
+if __name__ == "__main__":
+    main()

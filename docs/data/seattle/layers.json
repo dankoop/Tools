@@ -1,0 +1,314 @@
+{
+ "bounds": [
+  [
+   47.47862294838621,
+   -122.44785105173372
+  ],
+  [
+   47.74636953407691,
+   -122.21616966926518
+  ]
+ ],
+ "width": 1400,
+ "height": 2400,
+ "layers": {
+  "cs_now": {
+   "file": "cs_now.png",
+   "title": "Fall colour now",
+   "legend": {
+    "type": "ramp",
+    "colors": [
+     [
+      25,
+      127,
+      38
+     ],
+     [
+      242,
+      216,
+      25
+     ],
+     [
+      249,
+      140,
+      12
+     ],
+     [
+      216,
+      25,
+      12
+     ]
+    ],
+    "labels": [
+     "green",
+     "turning",
+     "peak",
+     "deep red"
+    ]
+   }
+  },
+  "dhue": {
+   "file": "dhue.png",
+   "title": "Hue shift since early Sept (\u00b0)",
+   "legend": {
+    "type": "ramp",
+    "colors": [
+     [
+      25,
+      127,
+      38
+     ],
+     [
+      242,
+      216,
+      25
+     ],
+     [
+      249,
+      140,
+      12
+     ],
+     [
+      216,
+      25,
+      12
+     ]
+    ],
+    "labels": [
+     "0\u00b0",
+     "+20\u00b0",
+     "+40\u00b0",
+     "+60\u00b0"
+    ]
+   }
+  },
+  "dndvi": {
+   "file": "dndvi.png",
+   "title": "NDVI change since early Sept",
+   "legend": {
+    "type": "ramp",
+    "colors": [
+     [
+      204,
+      38,
+      25
+     ],
+     [
+      237,
+      237,
+      229
+     ],
+     [
+      25,
+      89,
+      191
+     ]
+    ],
+    "labels": [
+     "-0.6 (leaf-off)",
+     "0",
+     "+0.2"
+    ]
+   }
+  },
+  "velocity": {
+   "file": "velocity.png",
+   "title": "Change velocity (PSRI per week)",
+   "legend": {
+    "type": "ramp",
+    "colors": [
+     [
+      25,
+      127,
+      38
+     ],
+     [
+      242,
+      216,
+      25
+     ],
+     [
+      249,
+      140,
+      12
+     ],
+     [
+      216,
+      25,
+      12
+     ]
+    ],
+    "labels": [
+     "steady",
+     "slow",
+     "fast",
+     "very fast"
+    ]
+   }
+  },
+  "decid": {
+   "file": "decid.png",
+   "title": "Deciduous likelihood",
+   "legend": {
+    "type": "ramp",
+    "colors": [
+     [
+      38,
+      89,
+      38
+     ],
+     [
+      153,
+      191,
+      76
+     ],
+     [
+      242,
+      204,
+      51
+     ]
+    ],
+    "labels": [
+     "evergreen",
+     "mixed",
+     "deciduous"
+    ]
+   }
+  },
+  "confidence": {
+   "file": "confidence.png",
+   "title": "Prediction confidence",
+   "legend": {
+    "type": "ramp",
+    "colors": [
+     [
+      102,
+      102,
+      102
+     ],
+     [
+      51,
+      153,
+      204
+     ]
+    ],
+    "labels": [
+     "low",
+     "high"
+    ]
+   }
+  },
+  "days_to_peak": {
+   "file": "days_to_peak.png",
+   "title": "Predicted days to peak colour",
+   "legend": {
+    "type": "ramp",
+    "colors": [
+     [
+      140,
+      51,
+      140
+     ],
+     [
+      229,
+      76,
+      25
+     ],
+     [
+      249,
+      204,
+      25
+     ],
+     [
+      89,
+      153,
+      63
+     ],
+     [
+      25,
+      76,
+      140
+     ]
+    ],
+    "labels": [
+     "past peak",
+     "peak now",
+     "+1 wk",
+     "+2-3 wk",
+     "+4 wk+"
+    ]
+   }
+  },
+  "stage": {
+   "file": "stage.png",
+   "title": "Colour stage now",
+   "legend": {
+    "type": "classes",
+    "items": [
+     [
+      "green / evergreen",
+      [
+       70,
+       140,
+       60
+      ]
+     ],
+     [
+      "turning",
+      [
+       240,
+       210,
+       40
+      ]
+     ],
+     [
+      "peak colour",
+      [
+       235,
+       90,
+       20
+      ]
+     ],
+     [
+      "past peak / leaf-off",
+      [
+       120,
+       85,
+       60
+      ]
+     ]
+    ]
+   }
+  }
+ },
+ "weeks": [
+  {
+   "label": "Sep 15-21",
+   "cs": "wk_Sep_15_21_cs.png",
+   "stage": "wk_Sep_15_21_stage.png",
+   "rgb": "wk_Sep_15_21_rgb.jpg",
+   "coverage": 0.997
+  },
+  {
+   "label": "Sep 22-28",
+   "cs": "wk_Sep_22_28_cs.png",
+   "stage": "wk_Sep_22_28_stage.png",
+   "rgb": "wk_Sep_22_28_rgb.jpg",
+   "coverage": 0.762
+  },
+  {
+   "label": "Sep 29-Oct 5",
+   "cs": "wk_Sep_29_Oct_5_cs.png",
+   "stage": "wk_Sep_29_Oct_5_stage.png",
+   "rgb": "wk_Sep_29_Oct_5_rgb.jpg",
+   "coverage": 0.759
+  },
+  {
+   "label": "Oct 6-12",
+   "cs": "wk_Oct_6_12_cs.png",
+   "stage": "wk_Oct_6_12_stage.png",
+   "rgb": "wk_Oct_6_12_rgb.jpg",
+   "coverage": 0.766
+  }
+ ]
+}
