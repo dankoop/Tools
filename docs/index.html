@@ -22,7 +22,7 @@ body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px
 button,select,input{font:inherit;color:inherit}
 h1,h2,h3{margin:0;text-wrap:balance}
 #map{position:absolute;inset:0;background:#0b0f14}
-.topbar{position:absolute;top:0;left:0;right:0;z-index:900;display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;background:linear-gradient(var(--panel) 70%,transparent);pointer-events:none}
+.topbar{position:absolute;top:0;left:0;right:0;z-index:1100;display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;background:linear-gradient(var(--panel) 70%,transparent);pointer-events:none}
 .topbar>*{pointer-events:auto}
 .brand{display:flex;flex-direction:column;min-width:0}
 .brand h1{font-family:var(--display);font-weight:600;font-size:19px;letter-spacing:-.01em;line-height:1.1}
@@ -33,22 +33,22 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .btn{padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:13px;display:inline-flex;gap:6px;align-items:center}
 .btn.primary{background:var(--accent);color:var(--accent-fg);border-color:transparent;font-weight:700}
 .btn:focus-visible,select:focus-visible,input:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.layerbox{position:absolute;right:12px;top:calc(54px + env(safe-area-inset-top,0px));z-index:900;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;width:min(300px,calc(100vw - 24px));box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px}
+.layerbox{position:absolute;right:12px;top:calc(54px + env(safe-area-inset-top,0px));z-index:1150;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;width:min(300px,calc(100vw - 24px));box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px}
 .layerbox label{display:flex;align-items:center;gap:8px;font-size:13px}
 .layerbox .row{display:flex;gap:8px;flex-wrap:wrap}
 .layerbox select{width:100%;padding:6px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel-2)}
-.legend{position:absolute;left:12px;bottom:calc(var(--sheet) + 58px);z-index:900;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 10px;max-width:min(280px,60vw);font-size:12px}
+.legend{position:absolute;left:12px;bottom:calc(var(--sheet) + 58px);z-index:1100;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 10px;max-width:min(280px,60vw);font-size:12px}
 .legend .ramp{height:9px;border-radius:4px;margin:4px 0 2px}
 .legend .labels{display:flex;justify-content:space-between;gap:4px;color:var(--muted);font-size:10.5px}
 .legend .cls{display:grid;gap:3px}
 .legend .cls span{display:flex;align-items:center;gap:6px}
 .legend .cls i{width:12px;height:12px;border-radius:3px;display:inline-block}
-.scrub{position:absolute;left:12px;right:12px;bottom:calc(var(--sheet) + 8px);z-index:900;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px}
+.scrub{position:absolute;left:12px;right:12px;bottom:calc(var(--sheet) + 8px);z-index:1100;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px}
 .scrub input[type=range]{flex:1;accent-color:var(--accent);min-width:0}
 .scrub .wk{font-family:var(--mono);font-size:12.5px;min-width:9.5em;text-align:right}
 .scrub .wk small{display:block;color:var(--muted);font-size:10.5px}
 .scrub.off{opacity:.55}
-.sheet{position:absolute;left:0;right:0;bottom:0;height:var(--sheet);z-index:950;background:var(--panel);border-top:1px solid var(--line);border-radius:14px 14px 0 0;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(0,0,0,.25);transition:height .25s ease}
+.sheet{position:absolute;left:0;right:0;bottom:0;height:var(--sheet);z-index:1200;background:var(--panel);border-top:1px solid var(--line);border-radius:14px 14px 0 0;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(0,0,0,.25);transition:height .25s ease}
 .sheet.collapsed{height:52px}
 .grip{height:22px;display:flex;align-items:center;justify-content:center;cursor:grab}
 .grip i{width:40px;height:4px;border-radius:2px;background:var(--line)}
@@ -844,7 +844,7 @@ const map=L.map('map',{zoomControl:false,attributionControl:true,minZoom:8,maxZo
 L.control.zoom({position:'topright'}).addTo(map);
 map.attributionControl.setPrefix('').addAttribution('Imagery: Copernicus Sentinel-2 L2A via AWS · Land cover: ESA WorldCover · Weather: NOAA GHCN, HRRR, GFS');
 const countyB=site.regions.county?site.regions.county.bounds:site.regions.seattle.bounds;
-map.fitBounds(hasCounty?countyB:site.regions.seattle.bounds,{padding:[10,10]});
+map.fitBounds((hasCounty&&innerWidth>=640)?countyB:(site.regions.seattle||site.regions.county).bounds,{padding:[10,10]});
 const panes={base:map.createPane('basepane'),county:map.createPane('countypane'),seattle:map.createPane('seattlepane'),vec:map.createPane('vecpane')};
 panes.base.style.zIndex=200;panes.county.style.zIndex=300;panes.seattle.style.zIndex=310;panes.vec.style.zIndex=400;
 let osm=null, baseImg={};
