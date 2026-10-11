@@ -23,6 +23,9 @@ def clean(o):
 def dump(o, path):
     json.dump(clean(o), open(path, "w"), allow_nan=False)
 
+def glob_files(d, prefixes):
+    return [os.path.join(d, f) for f in os.listdir(d) if f.startswith(prefixes)]
+
 def simplify_fc(path, tol, props=None):
     fc = json.load(open(path))
     geoms = [shape(f["geometry"]) for f in fc["features"]]
@@ -32,6 +35,7 @@ def simplify_fc(path, tol, props=None):
 def main(outdir, docs):
     data = os.path.join(docs, "data"); os.makedirs(data, exist_ok=True)
     site = dict(generated=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%MZ"), regions={}, summary={})
+    merged = {}
     for region in ("seattle", "county"):
         src = os.path.join(outdir, "render", region)
         if not os.path.exists(os.path.join(src, "layers.json")):
@@ -43,25 +47,43 @@ def main(outdir, docs):
         for prod in ("clusters", "destinations"):
             p = os.path.join(outdir, f"{prod}_{region}.geojson")
             if os.path.exists(p):
-                dump(json.load(open(p)), os.path.join(data, f"{prod}_{region}.geojson"))
+                merged.setdefault(prod, []).extend(json.load(open(p))["features"])
         p = os.path.join(outdir, f"summary_{region}.json")
         if os.path.exists(p):
             site["summary"][region] = clean(json.load(open(p)))
+    # one ranking across both regions
+    for prod, out_name in (("clusters", "hotspots.geojson"), ("destinations", "destinations.geojson")):
+        feats = sorted(merged.get(prod, []), key=lambda f: -f["properties"]["visit_score"])
+        for r, f in enumerate(feats, 1):
+            f["properties"]["rank"] = r
+        dump(dict(type="FeatureCollection", features=feats), os.path.join(data, out_name))
+    for stale in glob_files(data, ("clusters_", "destinations_")):
+        os.remove(stale)
     # weather: stations as GeoJSON + forecast + recent
     w = json.load(open(os.path.join(C.SCRATCH, "weather", "weather.json")))
     st_feats = []
+    def window_stats(st, year, md_end):
+        """Cold-night counts for Sep 15 .. md_end of a prior year, so the comparison matches this year's window."""
+        if st is None:
+            return None
+        tm = {d: v[0] for d, v in st["series"].items() if v[0] is not None and "0915" <= d[4:] <= md_end}
+        if not tm:
+            return None
+        return dict(nights_le_7=sum(v <= 7 for v in tm.values()), nights_le_2=sum(v <= 2 for v in tm.values()),
+                    mean_tmin=round(sum(tm.values()) / len(tm), 1), first_frost=st.get("first_frost"), n=len(tm))
     for sid, s in w["stations"]["2026"].items():
         if "lat" not in s:
             continue
-        prior = {y: w["stations"][y].get(sid) for y in ("2023", "2024", "2025")}
+        prior = {y: window_stats(w["stations"][y].get(sid), y, s["last_obs"][4:]) for y in ("2023", "2024", "2025")}
         series = {d: v for d, v in s["series"].items() if d >= "20260915"}
         st_feats.append(dict(type="Feature", geometry=dict(type="Point", coordinates=[s["lon"], s["lat"]]), properties=dict(
             id=sid, name=s["name"], elev=s["elev"], last_obs=s["last_obs"], nights_le_7=s["nights_le_7"], nights_le_2=s["nights_le_2"],
             nights_le_0=s["nights_le_0"], min_tmin=s["min_tmin"], mean_tmin=s["mean_tmin"], first_frost=s["first_frost"],
-            prior={y: (None if p is None else dict(nights_le_7=p["nights_le_7"], nights_le_2=p["nights_le_2"], first_frost=p["first_frost"], mean_tmin=p["mean_tmin"])) for y, p in prior.items()},
+            prior=prior,
             series=series)))
     dump(dict(type="FeatureCollection", features=st_feats), os.path.join(data, "stations.geojson"))
     dump(dict(gfs=w["gfs"], gfs_cycle=w["gfs_cycle"], points=w["points"], hrrr=w["hrrr"]), os.path.join(data, "weather.json"))
+    shutil.copy(os.path.join(os.path.dirname(__file__), "data", "places.json"), os.path.join(data, "places.json"))
     # reports
     rep = json.load(open(os.path.join(os.path.dirname(__file__), "data", "reports.json")))
     feats = [dict(type="Feature", geometry=dict(type="Point", coordinates=[r["lon"], r["lat"]]), properties={k: v for k, v in r.items() if k not in ("lon", "lat")}) for r in rep["reports"]]

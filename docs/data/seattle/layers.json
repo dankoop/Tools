@@ -84,24 +84,24 @@
   },
   "dndvi": {
    "file": "dndvi.png",
-   "title": "NDVI change since early Sept",
+   "title": "Greenness change since early Sept (NDVI)",
    "legend": {
     "type": "ramp",
     "colors": [
      [
-      204,
-      38,
-      25
+      91,
+      58,
+      137
      ],
      [
-      237,
-      237,
+      229,
+      229,
       229
      ],
      [
-      25,
-      89,
-      191
+      30,
+      94,
+      107
      ]
     ],
     "labels": [
@@ -113,29 +113,29 @@
   },
   "velocity": {
    "file": "velocity.png",
-   "title": "Change velocity (PSRI per week)",
+   "title": "Change velocity (senescence index per week)",
    "legend": {
     "type": "ramp",
     "colors": [
      [
-      25,
-      127,
-      38
+      219,
+      229,
+      232
      ],
      [
-      242,
-      216,
-      25
+      112,
+      181,
+      193
      ],
      [
-      249,
-      140,
-      12
+      30,
+      94,
+      107
      ],
      [
-      216,
-      25,
-      12
+      7,
+      45,
+      58
      ]
     ],
     "labels": [
@@ -153,19 +153,19 @@
     "type": "ramp",
     "colors": [
      [
-      38,
-      89,
-      38
+      219,
+      229,
+      232
      ],
      [
-      153,
-      191,
-      76
+      112,
+      181,
+      193
      ],
      [
-      242,
-      204,
-      51
+      30,
+      94,
+      107
      ]
     ],
     "labels": [
@@ -182,14 +182,14 @@
     "type": "ramp",
     "colors": [
      [
-      102,
-      102,
-      102
+      219,
+      219,
+      219
      ],
      [
-      51,
-      153,
-      204
+      89,
+      89,
+      89
      ]
     ],
     "labels": [
@@ -202,40 +202,70 @@
    "file": "days_to_peak.png",
    "title": "Predicted days to peak colour",
    "legend": {
-    "type": "ramp",
-    "colors": [
+    "type": "stops",
+    "stops": [
      [
-      140,
-      51,
-      140
+      0.0,
+      [
+       183,
+       183,
+       183
+      ]
      ],
      [
-      229,
-      76,
-      25
+      0.3,
+      [
+       140,
+       140,
+       140
+      ]
      ],
      [
-      249,
-      204,
-      25
+      0.375,
+      [
+       7,
+       51,
+       66
+      ]
      ],
      [
-      89,
-      153,
-      63
+      0.5,
+      [
+       38,
+       114,
+       132
+      ]
      ],
      [
-      25,
-      76,
-      140
+      0.75,
+      [
+       112,
+       181,
+       193
+      ]
+     ],
+     [
+      1.0,
+      [
+       214,
+       232,
+       237
+      ]
      ]
     ],
     "labels": [
-     "past peak",
-     "peak now",
+     "past",
+     "now",
      "+1 wk",
      "+2-3 wk",
      "+4 wk+"
+    ],
+    "positions": [
+     0.1,
+     0.375,
+     0.5,
+     0.75,
+     1.0
     ]
    }
   },
@@ -248,25 +278,25 @@
      [
       "green / evergreen",
       [
-       70,
-       140,
-       60
+       26,
+       128,
+       38
       ]
      ],
      [
       "turning",
       [
-       240,
-       210,
-       40
+       242,
+       217,
+       26
       ]
      ],
      [
       "peak colour",
       [
-       235,
-       90,
-       20
+       250,
+       140,
+       13
       ]
      ],
      [
@@ -286,29 +316,29 @@
    "label": "Sep 15-21",
    "cs": "wk_Sep_15_21_cs.png",
    "stage": "wk_Sep_15_21_stage.png",
-   "rgb": "wk_Sep_15_21_rgb.jpg",
-   "coverage": 0.997
+   "rgb": "wk_Sep_15_21_rgb.webp",
+   "coverage": 0.98
   },
   {
    "label": "Sep 22-28",
    "cs": "wk_Sep_22_28_cs.png",
    "stage": "wk_Sep_22_28_stage.png",
-   "rgb": "wk_Sep_22_28_rgb.jpg",
-   "coverage": 0.762
+   "rgb": "wk_Sep_22_28_rgb.webp",
+   "coverage": 0.711
   },
   {
    "label": "Sep 29-Oct 5",
    "cs": "wk_Sep_29_Oct_5_cs.png",
    "stage": "wk_Sep_29_Oct_5_stage.png",
-   "rgb": "wk_Sep_29_Oct_5_rgb.jpg",
-   "coverage": 0.759
+   "rgb": "wk_Sep_29_Oct_5_rgb.webp",
+   "coverage": 0.716
   },
   {
    "label": "Oct 6-12",
    "cs": "wk_Oct_6_12_cs.png",
    "stage": "wk_Oct_6_12_stage.png",
-   "rgb": "wk_Oct_6_12_rgb.jpg",
-   "coverage": 0.766
+   "rgb": "wk_Oct_6_12_rgb.webp",
+   "coverage": 0.714
   }
  ]
 }

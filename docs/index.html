@@ -2,101 +2,132 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Seattle Fall Color Sentinel</title>
 <meta name="description" content="Where fall colour is turning across Seattle and King County, from Sentinel-2 imagery, tree phenology and weather.">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Source+Sans+3:wght@400;600;700&display=swap">
 <style>
-/* Layout: full-screen imagery map; a compact top bar; a draggable bottom sheet with tabs; floating week scrubber and legend. */
+/* Layout: the map fills the screen; a bottom strip holds the week stepper and legend; details live in a sheet (phone) or a right-hand panel (desktop).
+   Colour rule: the fall-colour scale (green → yellow → orange → red, brown for leaf-off) is the ONLY chromatic element and is used only to encode colour state. All chrome is neutral. */
 :root{
-  --bg:#f3efe6; --panel:#fffdf8; --panel-2:#efe9dc; --fg:#1d1b17; --muted:#6a645a; --line:#d8d0c0;
-  --accent:#b9541b; --accent-fg:#ffffff; --good:#3f7d3a; --warn:#c08a12; --bad:#a43a2a;
-  --st1:#468c3c; --st2:#f0d228; --st3:#eb5a14; --st4:#78553c;
-  --display:"Fraunces",Georgia,serif; --body:"Atkinson Hyperlegible",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
-  --sheet:46vh;
+  --bg:#f4f3ef; --panel:#fbfaf7; --panel-2:#edebe5; --fg:#1b1a18; --muted:#66625b; --line:#d6d2c9; --ink:#2a2824; --ink-fg:#fbfaf7;
+  --c1:#1a8026; --c2:#f2d91a; --c3:#fa8c0d; --c4:#d91a0d; --c5:#785540;   /* data scale: green, yellow, orange, red, leaf-off brown */
+  --display:"Fraunces",Georgia,serif; --body:"Source Sans 3",system-ui,sans-serif;
+  --sheet:36vh; --strip:92px;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15181c;--panel:#1d2126;--panel-2:#272c33;--fg:#ece7dc;--muted:#a39b8d;--line:#3a414a;--accent:#f0944a;--accent-fg:#1a1208;--good:#7cc46f;--warn:#e7b94a;--bad:#e3705c;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#15181c;--panel:#1d2126;--panel-2:#272c33;--fg:#ece7dc;--muted:#a39b8d;--line:#3a414a;--accent:#f0944a;--accent-fg:#1a1208;--good:#7cc46f;--warn:#e7b94a;--bad:#e3705c;color-scheme:dark}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151617;--panel:#1e2022;--panel-2:#2a2d30;--fg:#ebe8e1;--muted:#a19c93;--line:#3b3f44;--ink:#ebe8e1;--ink-fg:#151617;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#151617;--panel:#1e2022;--panel-2:#2a2d30;--fg:#ebe8e1;--muted:#a19c93;--line:#3b3f44;--ink:#ebe8e1;--ink-fg:#151617;color-scheme:dark}
 html,body{height:100%}
-body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.4;overflow:hidden}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.4;overflow:hidden;font-variant-numeric:tabular-nums}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-.leaflet-top.leaflet-right{margin-top:calc(46px + env(safe-area-inset-top,0px))}
 button,select,input{font:inherit;color:inherit}
 h1,h2,h3{margin:0;text-wrap:balance}
-#map{position:absolute;inset:0;background:#0b0f14}
-.topbar{position:absolute;top:0;left:0;right:0;z-index:1100;display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;background:linear-gradient(var(--panel) 70%,transparent);pointer-events:none}
+a{color:inherit}
+#app{position:absolute;inset:0;display:grid;grid-template-rows:1fr auto;grid-template-columns:1fr}
+#mapwrap{position:relative;min-height:0}
+#map{position:absolute;inset:0;background:#0f1113}
+.leaflet-container{font-family:var(--body);background:#0f1113}
+.leaflet-top.leaflet-right{margin-top:calc(46px + env(safe-area-inset-top,0px))}
+.topbar{position:absolute;top:0;left:0;right:0;z-index:1100;display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;pointer-events:none}
 .topbar>*{pointer-events:auto}
-.brand{display:flex;flex-direction:column;min-width:0}
-.brand h1{font-family:var(--display);font-weight:600;font-size:19px;letter-spacing:-.01em;line-height:1.1}
-.brand small{color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);font-size:12px;white-space:nowrap}
-.chip b{font-family:var(--mono);font-weight:500}
+.brand h1{font-family:var(--display);font-weight:600;font-size:19px;letter-spacing:-.01em;line-height:1.1;background:var(--panel);padding:4px 10px;border-radius:8px;border:1px solid var(--line)}
 .spacer{flex:1}
-.btn{padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:13px;display:inline-flex;gap:6px;align-items:center}
-.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:transparent;font-weight:700}
-.btn:focus-visible,select:focus-visible,input:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.layerbox{position:absolute;right:12px;top:calc(54px + env(safe-area-inset-top,0px));z-index:1150;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;width:min(300px,calc(100vw - 24px));box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px}
-.layerbox label{display:flex;align-items:center;gap:8px;font-size:13px}
-.layerbox .row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:14px;display:inline-flex;gap:6px;align-items:center;line-height:1.2}
+#btn-layers{max-width:46vw;white-space:nowrap}
+#btn-layers span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.btn[aria-pressed=true],.btn.on{background:var(--ink);color:var(--ink-fg);border-color:var(--ink);font-weight:600}
+.btn:focus-visible,select:focus-visible,input:focus-visible,.tab:focus-visible,.item:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.layerbox{position:absolute;right:12px;top:calc(52px + env(safe-area-inset-top,0px));z-index:1150;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;width:min(320px,calc(100vw - 24px));box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px}
+.layerbox label{display:flex;align-items:center;gap:8px;font-size:14px}
+.layerbox .row{display:flex;gap:8px 14px;flex-wrap:wrap}
 .layerbox select{width:100%;padding:6px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel-2)}
-.legend{position:absolute;left:12px;bottom:calc(var(--sheet) + 58px);z-index:1100;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 10px;max-width:min(280px,60vw);font-size:12px}
-.legend .ramp{height:9px;border-radius:4px;margin:4px 0 2px}
+.layerbox input[type=checkbox]{accent-color:var(--ink)}
+/* bottom strip: stepper + legend + provenance */
+.strip{position:absolute;left:0;right:0;bottom:0;z-index:1100;background:var(--panel);border-top:1px solid var(--line);padding:8px 12px 8px;display:grid;grid-template-columns:1fr auto;gap:6px 14px;align-items:center}
+@media (max-width:899px){.strip{grid-template-columns:1fr}.legend{max-width:none}.prov{grid-column:1}.step{min-width:56px}}
+.stepper{display:flex;gap:4px;align-items:stretch;overflow-x:auto;scrollbar-width:none}
+.step{flex:1 0 auto;min-width:64px;border:1px solid var(--line);background:var(--panel-2);border-radius:7px;padding:4px 6px;font-size:12px;line-height:1.15;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.step b{font-weight:600;font-size:12.5px}
+.step small{color:var(--muted);font-size:11px}
+.step[aria-pressed=true]{background:var(--ink);color:var(--ink-fg);border-color:var(--ink)}
+.step[aria-pressed=true] small{color:var(--ink-fg);opacity:.75}
+.step:disabled{opacity:.4;cursor:default}
+.playbtn{align-self:stretch;min-width:40px;border:1px solid var(--line);border-radius:7px;background:var(--panel-2);cursor:pointer;font-size:14px}
+.legend{font-size:12px;min-width:0;max-width:260px}
+.legend b{display:block;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legend .ramp{height:8px;border-radius:4px;margin:2px 0}
 .legend .labels{display:flex;justify-content:space-between;gap:4px;color:var(--muted);font-size:10.5px}
-.legend .cls{display:grid;gap:3px}
-.legend .cls span{display:flex;align-items:center;gap:6px}
-.legend .cls i{width:12px;height:12px;border-radius:3px;display:inline-block}
-.scrub{position:absolute;left:12px;right:12px;bottom:calc(var(--sheet) + 8px);z-index:1100;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px}
-.scrub input[type=range]{flex:1;accent-color:var(--accent);min-width:0}
-.scrub .wk{font-family:var(--mono);font-size:12.5px;min-width:9.5em;text-align:right}
-.scrub .wk small{display:block;color:var(--muted);font-size:10.5px}
-.scrub.off{opacity:.55}
-.sheet{position:absolute;left:0;right:0;bottom:0;height:var(--sheet);z-index:1200;background:var(--panel);border-top:1px solid var(--line);border-radius:14px 14px 0 0;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(0,0,0,.25);transition:height .25s ease}
-.sheet.collapsed{height:52px}
-.grip{height:22px;display:flex;align-items:center;justify-content:center;cursor:grab}
+.legend .cls{display:flex;gap:8px;flex-wrap:wrap}
+.legend .cls span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.legend .cls i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.prov{grid-column:1/-1;color:var(--muted);font-size:11.5px;display:flex;gap:12px;flex-wrap:wrap}
+/* sheet / panel */
+.sheet{position:absolute;left:0;right:0;bottom:0;height:var(--sheet);z-index:1200;background:var(--panel);border-top:1px solid var(--line);border-radius:14px 14px 0 0;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(0,0,0,.22);transition:height .25s ease}
+.sheet.collapsed{height:84px}
+.grip{height:18px;display:flex;align-items:center;justify-content:center;cursor:grab;flex:none}
 .grip i{width:40px;height:4px;border-radius:2px;background:var(--line)}
-.tabs{display:flex;gap:2px;padding:0 10px 6px;overflow-x:auto;scrollbar-width:none}
-.tab{padding:6px 11px;border-radius:999px;border:1px solid transparent;background:transparent;cursor:pointer;white-space:nowrap;font-size:13px;color:var(--muted)}
-.tab[aria-selected=true]{background:var(--panel-2);border-color:var(--line);color:var(--fg);font-weight:700}
+.verdict{padding:0 14px 6px;font-size:14px;line-height:1.35;flex:none}
+.verdict b{font-weight:700}
+.verdict .more{color:var(--muted);font-size:12.5px}
+.tabs{display:flex;gap:2px;padding:0 10px 6px;overflow-x:auto;scrollbar-width:none;flex:none}
+.tab{padding:6px 11px;border-radius:999px;border:1px solid transparent;background:transparent;cursor:pointer;white-space:nowrap;font-size:14px;color:var(--muted)}
+.tab[aria-selected=true]{background:var(--panel-2);border-color:var(--line);color:var(--fg);font-weight:600}
 .sheet-body{flex:1;overflow:auto;padding:4px 14px calc(16px + env(safe-area-inset-bottom,0px));min-width:0}
-.list{display:grid;gap:6px}
-.item{display:grid;grid-template-columns:30px 1fr auto;gap:8px 10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);cursor:pointer;text-align:left}
-.item:hover{border-color:var(--accent)}
-.item .rank{font-family:var(--display);font-size:18px;color:var(--accent);text-align:center}
-.item .name{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item .sub{grid-column:2;color:var(--muted);font-size:12px;display:flex;gap:8px;flex-wrap:wrap}
-.item .score{font-family:var(--mono);font-size:13px;text-align:right}
-.item .spark{grid-column:3;grid-row:2}
-.pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;color:#1a1208}
-.pill.s1{background:var(--st1);color:#fff}.pill.s2{background:var(--st2)}.pill.s3{background:var(--st3);color:#fff}.pill.s4{background:var(--st4);color:#fff}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13px}
-.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:var(--mono);font-size:12.5px}
-.muted{color:var(--muted)}
-.card h3{font-family:var(--display);font-size:17px;margin-bottom:4px}
-.card p{margin:6px 0}
 .filters{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
-.filters .btn{padding:4px 9px;font-size:12px}
-.filters .btn[aria-pressed=true]{background:var(--accent);color:var(--accent-fg);border-color:transparent}
-table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+.filters .btn{padding:4px 9px;font-size:13px}
+.list{display:grid;gap:6px}
+.item{display:grid;grid-template-columns:26px 1fr auto;gap:4px 10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);cursor:pointer;text-align:left;width:100%}
+.item:hover{border-color:var(--ink)}
+.item .rank{font-weight:700;color:var(--muted);text-align:center;font-size:14px}
+.item .name{font-weight:600;min-width:0;line-height:1.25}
+.item .sub{grid-column:2;color:var(--muted);font-size:13px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.item .right{grid-column:3;grid-row:1/3;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.scorebar{width:64px;height:6px;border-radius:3px;background:var(--line);position:relative;overflow:hidden}
+.scorebar i{position:absolute;left:0;top:0;bottom:0;background:var(--ink);border-radius:3px}
+.scoretxt{font-size:12px;color:var(--muted)}
+.pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid transparent}
+.pill.s1{background:var(--c1);color:#fff}.pill.s2{background:var(--c2);color:#1b1a18}.pill.s3{background:var(--c3);color:#1b1a18}.pill.s4{background:var(--c5);color:#fff}.pill.s0{background:var(--panel-2);color:var(--muted);border-color:var(--line)}
+.tag{display:inline-block;padding:0 6px;border-radius:4px;font-size:11.5px;border:1px solid var(--line);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:14px;margin:6px 0}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.muted{color:var(--muted)}
+.stack{display:flex;height:9px;border-radius:4px;overflow:hidden;margin:4px 0 2px;background:var(--line)}
+.stack i{display:block;height:100%}
+.stacklbl{display:flex;gap:10px;font-size:11.5px;color:var(--muted);flex-wrap:wrap}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
 th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)}
-th{color:var(--muted);font-weight:400;font-size:11.5px}
-td.n{font-family:var(--mono);text-align:right}th.n{text-align:right}
+th{color:var(--muted);font-weight:400;font-size:12px}
+td.n,th.n{text-align:right}
 .tablewrap{overflow-x:auto;margin:6px 0 12px}
-.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:8px 0}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:8px 0}
 .stat div{padding:8px 10px;border-radius:9px;background:var(--panel-2);border:1px solid var(--line)}
-.stat b{display:block;font-family:var(--mono);font-size:17px;font-weight:500}
-.stat span{font-size:11.5px;color:var(--muted)}
-.note{padding:8px 10px;border-left:3px solid var(--accent);background:var(--panel-2);border-radius:0 8px 8px 0;font-size:13px;margin:8px 0}
+.stat b{display:block;font-size:19px;font-weight:600}
+.stat span{font-size:12px;color:var(--muted)}
+.note{padding:8px 10px;border-left:3px solid var(--ink);background:var(--panel-2);border-radius:0 8px 8px 0;font-size:14px;margin:8px 0}
 .about p,.about li{max-width:65ch}
-.leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:10px;border:1px solid var(--line)}
+details summary{cursor:pointer;font-weight:600;margin:6px 0}
+.leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:10px;border:1px solid var(--line);box-shadow:0 4px 20px rgba(0,0,0,.3)}
 .leaflet-popup-tip{background:var(--panel)}
-.leaflet-popup-content{margin:10px 12px;font-family:var(--body);font-size:13px;line-height:1.35}
-.leaflet-popup-content h3{font-family:var(--display);font-size:16px;margin-bottom:4px}
+.leaflet-popup-content{margin:10px 12px;font-family:var(--body);font-size:14px;line-height:1.35;min-width:230px}
+.leaflet-popup-content h3{font-family:var(--display);font-size:16px;margin-bottom:4px;font-weight:600}
 .leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
-.rank-badge{background:var(--accent);color:var(--accent-fg);font:700 12px/20px var(--body);width:22px;height:22px;border-radius:50%;text-align:center;border:2px solid var(--panel);box-shadow:0 1px 4px rgba(0,0,0,.4)}
-.stn{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid #7fb7e6;filter:drop-shadow(0 0 2px #000)}
-.rep{width:14px;height:14px;border-radius:3px;background:#e9d8a6;border:2px solid #5b4a1e;transform:rotate(45deg)}
+.rank-badge{background:#1b1a18;color:#fff;font:600 12px/20px var(--body);width:22px;height:22px;border-radius:50%;text-align:center;border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.stn{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid #e8e6e0;filter:drop-shadow(0 0 2px #000)}
+.rep{width:13px;height:13px;border-radius:2px;background:#e8e6e0;border:2px solid #1b1a18;transform:rotate(45deg)}
+.plabel{color:#f1efe9;font:600 12px/1 var(--body);text-shadow:0 0 3px #000,0 0 6px #000,0 1px 2px #000;white-space:nowrap;letter-spacing:.02em;pointer-events:none}
+.plabel.water{color:#b9c6cf;font-weight:400;font-style:italic}
+.base-grey img{filter:grayscale(1) brightness(.95)}
 .leaflet-control-attribution{background:rgba(0,0,0,.45)!important;color:#ccc!important;font-size:10px}
 .leaflet-control-attribution a{color:#ddd!important}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-@media (max-width:640px){:root{--sheet:34vh}.brand small{display:none}.brand h1{font-size:17px}.legend{bottom:calc(var(--sheet) + 60px);font-size:11px}.topbar .chip.obs{display:none}}
+.spark{display:block}
+@media (min-width:900px){
+  #app{grid-template-columns:1fr 400px;grid-template-rows:1fr}
+  #mapwrap{grid-column:1}
+  .sheet{position:relative;height:auto!important;grid-column:2;border-top:0;border-left:1px solid var(--line);border-radius:0;box-shadow:none;transition:none}
+  .sheet.collapsed{height:auto}
+  .grip{display:none}
+  .verdict{padding-top:12px}
+  .strip{grid-template-columns:1fr auto}
+}
+@media (max-width:899px){.strip{bottom:var(--sheet)}.topbar .brand h1{font-size:17px}.sheet.collapsed ~ .strip{bottom:84px}}
 @media (prefers-reduced-motion:reduce){.sheet{transition:none}}
 /* --- Leaflet 1.9.4 stylesheet (inlined; BSD-2-Clause, (c) 2010-2023 Vladimir Agafonkin) --- */
 /* required styles */
@@ -761,45 +792,40 @@ svg.leaflet-image-layer.leaflet-interactive path {
 		}
 	}
 
-.leaflet-container{font-family:var(--body);background:#0b0f14}
+.leaflet-container{font-family:var(--body);background:#0f1113}
 </style>
 
-<div id="map" role="application" aria-label="Fall colour map"></div>
-
-<header class="topbar">
-  <div class="brand">
-    <h1>Seattle Fall Color Sentinel</h1>
-    <small id="subtitle">Sentinel-2 · tree phenology · weather · King County</small>
+<div id="app">
+ <div id="mapwrap">
+  <div id="map" role="application" aria-label="Fall colour map"></div>
+  <header class="topbar">
+    <div class="brand"><h1>Seattle Fall Color Sentinel</h1></div>
+    <span class="spacer"></span>
+    <button class="btn" id="btn-layers" aria-expanded="false" aria-controls="layerbox">Layers · <span id="layer-name">Fall colour</span></button>
+  </header>
+  <div class="layerbox" id="layerbox" hidden>
+    <label>Show <select id="sel-layer" aria-label="Map layer"></select></label>
+    <div class="row">
+      <label><input type="checkbox" id="chk-clusters" checked> Hotspots</label>
+      <label><input type="checkbox" id="chk-dest" checked> Places</label>
+      <label><input type="checkbox" id="chk-labels" checked> Labels</label>
+      <label><input type="checkbox" id="chk-stations"> Weather stations</label>
+      <label><input type="checkbox" id="chk-reports"> Reports</label>
+    </div>
+    <div class="row">
+      <label>Base <select id="sel-base" aria-label="Base map"><option value="grey">Imagery, greyscale</option><option value="rgb">Imagery, colour</option><option value="osm">Street map (needs internet tiles)</option><option value="none">Plain dark</option></select></label>
+    </div>
+    <label><input type="range" id="opacity" min="20" max="100" value="85" aria-label="Overlay opacity" style="accent-color:var(--ink)"> overlay opacity</label>
   </div>
-  <span class="chip obs" id="obs-chip" title="Most recent clear Sentinel-2 observation used">latest <b id="obs-date">…</b></span>
-  <span class="spacer"></span>
-  <button class="btn" id="btn-layers" aria-expanded="true" aria-controls="layerbox">Layers</button>
-</header>
-
-<div class="layerbox" id="layerbox">
-  <label>Show <select id="sel-layer" aria-label="Map layer"></select></label>
-  <div class="row">
-    <label><input type="checkbox" id="chk-clusters" checked> Hotspots</label>
-    <label><input type="checkbox" id="chk-dest" checked> Places</label>
-    <label><input type="checkbox" id="chk-stations"> Weather stations</label>
-    <label><input type="checkbox" id="chk-reports"> Reports</label>
+  <div class="strip" id="strip">
+    <div class="stepper" id="stepper" role="group" aria-label="Week"></div>
+    <div class="legend" id="legend" aria-live="polite"></div>
+    <div class="prov" id="prov"></div>
   </div>
-  <div class="row">
-    <label>Base <select id="sel-base" aria-label="Base map"><option value="rgb">Sentinel-2 imagery</option><option value="osm">Street map (needs internet tiles)</option><option value="none">Dark</option></select></label>
-    <label><input type="range" id="opacity" min="20" max="100" value="85" aria-label="Overlay opacity"> opacity</label>
-  </div>
-</div>
-
-<div class="legend" id="legend" aria-live="polite"></div>
-
-<div class="scrub" id="scrub">
-  <button class="btn" id="btn-play" aria-label="Play weeks">▶</button>
-  <input type="range" id="week" min="0" max="4" value="4" aria-label="Week">
-  <div class="wk"><span id="wk-label">Now</span><small id="wk-cov"></small></div>
-</div>
-
-<section class="sheet" id="sheet" aria-label="Details">
+ </div>
+ <section class="sheet" id="sheet" aria-label="Details">
   <div class="grip" id="grip"><i></i></div>
+  <div class="verdict" id="verdict">Loading map data…</div>
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" data-tab="hot" aria-selected="true">Hotspots</button>
     <button class="tab" role="tab" data-tab="places">Places</button>
@@ -807,8 +833,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <button class="tab" role="tab" data-tab="reports">Reports</button>
     <button class="tab" role="tab" data-tab="about">Method</button>
   </div>
-  <div class="sheet-body" id="sheet-body"><p class="muted">Loading map data…</p></div>
-</section>
+  <div class="sheet-body" id="sheet-body"></div>
+ </section>
+</div>
 
 <!-- Leaflet 1.9.4 (inlined so the page works with no outside script host; BSD-2-Clause, (c) 2010-2023 Vladimir Agafonkin) -->
 <script>/* @preserve
@@ -820,54 +847,66 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <script>
 (async function(){
 const $=s=>document.querySelector(s);
-const STAGE={1:['green / evergreen','s1'],2:['turning','s2'],3:['peak colour','s3'],4:['past peak / leaf-off','s4']};
+const STAGE={1:['green','s1'],2:['turning','s2'],3:['peak colour','s3'],4:['past peak','s4']};
 const RAMP=[[26,128,38],[242,217,26],[250,140,13],[217,26,13]];
 const fmt=(x,d=0)=>x==null||isNaN(x)?'–':Number(x).toFixed(d);
-const cssVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-let site,weather,stations,reports,bounds,clusters={},dests={};
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const dstr=d=>`${MON[d.getMonth()]} ${d.getDate()}`;
+const isoDate=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let site,weather,stations,reports,bounds,hotspots,dests,places;
 try{
-  [site,weather,stations,reports,bounds]=await Promise.all(['site.json','weather.json','stations.geojson','reports.geojson','boundaries.geojson'].map(f=>fetch('data/'+f).then(r=>r.json())));
-  for(const r of Object.keys(site.regions)){
-    clusters[r]=await fetch(`data/clusters_${r}.geojson`).then(r=>r.json()).catch(()=>({features:[]}));
-    dests[r]=await fetch(`data/destinations_${r}.geojson`).then(r=>r.json()).catch(()=>({features:[]}));
-  }
-}catch(e){ $('#sheet-body').innerHTML='<p class="note">Could not load the map data ('+e.message+'). The data files must sit next to this page under data/. If you are viewing a preview, open the full page.</p>'; return; }
-if(typeof L==='undefined'){ $('#sheet-body').innerHTML='<p class="note">The map library did not load in this viewer.</p>'; return; }
+  [site,weather,stations,reports,bounds,hotspots,dests,places]=await Promise.all(['site.json','weather.json','stations.geojson','reports.geojson','boundaries.geojson','hotspots.geojson','destinations.geojson','places.json'].map(f=>fetch('data/'+f).then(r=>{if(!r.ok)throw new Error(f+' '+r.status);return r.json()})));
+}catch(e){ $('#verdict').textContent='Could not load the map data ('+e.message+').'; $('#sheet-body').innerHTML='<p class="note">The data files must sit next to this page under data/. If you are viewing a preview, open the full page.</p>'; return; }
+if(typeof L==='undefined'){ $('#verdict').textContent='The map library did not load in this viewer.'; return; }
 const regions=Object.keys(site.regions); const hasCounty=regions.includes('county');
 const weeks=(site.regions.seattle||site.regions.county).weeks;
-const summary=site.summary.seattle||site.summary.county||{};
-$('#obs-date').textContent=summary.latest_obs||'–';
-document.documentElement.style.setProperty('--sheet',innerWidth<640?'34vh':'46vh');
+const sumS=site.summary.seattle||{}, sumC=site.summary.county||{}; const summary=Object.keys(sumS).length?sumS:sumC;
+const today=isoDate(summary.today||new Date().toISOString().slice(0,10));
+const desktop=()=>innerWidth>=900;
+
+// ---------------------------------------------------------------- helpers for words, dates, colours
+function rampColor(x){x=Math.max(0,Math.min(1,x))*3;const i=Math.min(2,Math.floor(x)),f=x-i;const c=RAMP[i].map((v,j)=>Math.round(v*(1-f)+RAMP[i+1][j]*f));return `rgb(${c})`}
+function intensityWord(v){return v<0.12?'mostly green':v<0.25?'first colour':v<0.4?'turning':v<0.55?'colourful':'vivid'}
+function velocityWord(v){return v>0.04?'changing fast':v>0.015?'changing':v>-0.01?'holding':'fading'}
+function stageOf(p){ // dominant state from fractions
+  const pf=p.peak_fraction??(p.stage_fraction?p.stage_fraction.peak:0), lf=p.leafoff_fraction??(p.stage_fraction?p.stage_fraction['past peak']:0), tf=p.stage_fraction?p.stage_fraction.turning:null;
+  if(lf>=0.3) return 4; if(pf>=0.35) return 3; if(p.intensity>=0.15||(tf!=null&&tf>=0.3)) return 2; return 1;
+}
+function stagePill(p){const s=stageOf(p);return `<span class="pill s${s}">${STAGE[s][0]}</span>`}
+function timingText(d){ if(d==null||isNaN(d)) return 'no timing estimate'; if(d<-10){return `past peak (around ${dstr(new Date(today.getTime()+d*864e5))})`} if(d<=-3) return 'just past peak'; if(d<=2) return 'peak now'; const a=new Date(today.getTime()+(d-2)*864e5),b=new Date(today.getTime()+(d+2)*864e5); return `peak about ${dstr(a)}–${dstr(b)}` }
+function timingShort(d){ if(d==null||isNaN(d)) return '–'; if(d<-10) return 'past peak'; if(d<=-3) return 'just past'; if(d<=2) return 'peak now'; return `peak ~${dstr(new Date(today.getTime()+d*864e5))}` }
+function spark(series,w=64,h=20){const vals=Object.values(series||{});if(!vals.some(v=>v!=null))return'';const n=vals.length;const pts=vals.map((v,i)=>v==null?null:[(i/(n-1))*(w-4)+2,h-2-Math.max(0,Math.min(1,v))*(h-5)]).filter(Boolean);if(!pts.length)return'';const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');const last=pts[pts.length-1];const lv=vals.filter(v=>v!=null).pop();return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/><circle cx="${last[0]}" cy="${last[1]}" r="2.6" fill="${rampColor(lv)}" stroke="#1b1a18" stroke-width=".8"/></svg>`}
+function scoreBar(v){return `<div class="scorebar" title="worth-visiting score ${fmt(v)}/100"><i style="width:${Math.round(v)}%"></i></div><span class="scoretxt">${fmt(v)}</span>`}
+function stackBar(sf){const keys=[['green','c1'],['turning','c2'],['peak','c3'],['past peak','c5']];const tot=keys.reduce((a,[k])=>a+(sf[k]||0),0)||1;return `<div class="stack">${keys.map(([k,c])=>`<i style="width:${(sf[k]||0)/tot*100}%;background:var(--${c})"></i>`).join('')}</div><div class="stacklbl">${keys.map(([k])=>`<span>${k} ${Math.round((sf[k]||0)/tot*100)}%</span>`).join('')}</div>`}
 
 // ---------------------------------------------------------------- map
-const map=L.map('map',{zoomControl:false,attributionControl:true,minZoom:8,maxZoom:16});
+const map=L.map('map',{zoomControl:false,attributionControl:true,minZoom:8,maxZoom:16,zoomSnap:0.25,zoomDelta:0.5});
 L.control.zoom({position:'topright'}).addTo(map);
-map.attributionControl.setPrefix('').addAttribution('Imagery: Copernicus Sentinel-2 L2A via AWS · Land cover: ESA WorldCover · Weather: NOAA GHCN, HRRR, GFS');
+map.attributionControl.setPrefix('').addAttribution('Copernicus Sentinel-2 via AWS · ESA WorldCover · NOAA GHCN, HRRR, GFS');
 const countyB=site.regions.county?site.regions.county.bounds:site.regions.seattle.bounds;
-map.fitBounds((hasCounty&&innerWidth>=640)?countyB:(site.regions.seattle||site.regions.county).bounds,{padding:[10,10]});
-const panes={base:map.createPane('basepane'),county:map.createPane('countypane'),seattle:map.createPane('seattlepane'),vec:map.createPane('vecpane')};
-panes.base.style.zIndex=200;panes.county.style.zIndex=300;panes.seattle.style.zIndex=310;panes.vec.style.zIndex=400;
-let osm=null, baseImg={};
-const overlays={}; // region -> L.imageOverlay (analysis)
-function imgUrl(region,file){return `data/${region}/${file}`}
+map.fitBounds((hasCounty&&desktop())?countyB:(site.regions.seattle||site.regions.county).bounds,{padding:[10,10]});
+['basepane','countypane','seattlepane','vecpane','labelpane'].forEach((n,i)=>{map.createPane(n).style.zIndex=200+i*60});
+map.getPane('labelpane').style.pointerEvents='none';
+let osm=null; const baseImg={}, overlays={};
+const imgUrl=(r,f)=>`data/${r}/${f}`;
 for(const r of regions){
+  baseImg[r]=L.imageOverlay('',site.regions[r].bounds,{pane:'basepane',opacity:1,interactive:false,className:'base-grey'}).addTo(map);
   overlays[r]=L.imageOverlay('',site.regions[r].bounds,{pane:r+'pane',opacity:.85,interactive:false}).addTo(map);
-  baseImg[r]=L.imageOverlay('',site.regions[r].bounds,{pane:'basepane',opacity:1,interactive:false}).addTo(map);
 }
-L.geoJSON(bounds,{pane:'vecpane',style:f=>({color:f.properties.name==='Seattle'?'#ffd27a':'#e6e1d6',weight:f.properties.name==='Seattle'?1.6:1,fill:false,opacity:.8,dashArray:f.properties.name==='Seattle'?null:'4 4'}),interactive:false}).addTo(map);
+L.geoJSON(bounds,{pane:'vecpane',style:f=>({color:'#e8e6e0',weight:f.properties.name==='Seattle'?1.4:1,fill:false,opacity:.7,dashArray:f.properties.name==='Seattle'?null:'4 4'}),interactive:false}).addTo(map);
 
-// layer catalogue
 const LAYERS=[
- ['cs','Fall colour (by week)',true],['stage','Colour stage (by week)',true],['rgb','True colour imagery (by week)',true],
- ['days_to_peak','Predicted days to peak',false],['dhue','Hue shift since early Sept',false],['dndvi','Greenness change (NDVI)',false],
+ ['cs','Fall colour',true],['stage','Colour stage',true],['rgb','Imagery only',true],
+ ['days_to_peak','Predicted days to peak',false],['dhue','Hue shift since early Sept',false],['dndvi','Greenness change',false],
  ['velocity','Change velocity',false],['decid','Deciduous likelihood',false],['confidence','Prediction confidence',false]];
 const sel=$('#sel-layer'); LAYERS.forEach(([k,t])=>{const o=document.createElement('option');o.value=k;o.textContent=t;sel.appendChild(o)});
-let layer='cs', week=weeks.length; // week index; weeks.length === "Now"
-const wk=$('#week'); wk.max=weeks.length; wk.value=weeks.length;
+let layer=store.get('layer')||'cs', week=weeks.length; if(!LAYERS.some(l=>l[0]===layer)) layer='cs'; sel.value=layer;
 function layerFile(region,k,w){
   const R=site.regions[region]; if(!R) return null;
   if(['cs','stage','rgb'].includes(k)){
-    if(w>=weeks.length){ if(k==='rgb') return R.weeks[weeks.length-1].rgb; return k==='cs'?R.layers.cs_now.file:R.layers.stage.file; }
+    if(k==='rgb') return null;                                     // imagery only: the base shows it
+    if(w>=weeks.length) return k==='cs'?R.layers.cs_now.file:R.layers.stage.file;
     return R.weeks[w][k];
   }
   return R.layers[k]?R.layers[k].file:null;
@@ -876,125 +915,159 @@ function legendFor(k){
   const R=site.regions.seattle||site.regions.county;
   const meta=k==='cs'?R.layers.cs_now:k==='stage'?R.layers.stage:k==='rgb'?null:R.layers[k];
   const el=$('#legend');
-  if(!meta){el.innerHTML='<b>Sentinel-2 true colour</b><div class="muted">cloud-free median for the selected week</div>';return}
-  let h=`<b>${meta.title}</b>`;
-  if(meta.legend.type==='ramp'){h+=`<div class="ramp" style="background:linear-gradient(90deg,${meta.legend.colors.map(c=>`rgb(${c})`).join(',')})"></div><div class="labels">${meta.legend.labels.map(l=>`<span>${l}</span>`).join('')}</div>`}
-  else{h+=`<div class="cls">${meta.legend.items.map(([l,c])=>`<span><i style="background:rgb(${c})"></i>${l}</span>`).join('')}</div>`}
+  if(!meta){el.innerHTML='<b>Sentinel-2 imagery</b><div class="muted">cloud-free median for the selected week</div>';return}
+  let h=`<b>${meta.title}</b>`; const lg=meta.legend;
+  if(lg.type==='ramp'){h+=`<div class="ramp" style="background:linear-gradient(90deg,${lg.colors.map(c=>`rgb(${c})`).join(',')})"></div><div class="labels">${lg.labels.map(l=>`<span>${l}</span>`).join('')}</div>`}
+  else if(lg.type==='stops'){h+=`<div class="ramp" style="background:linear-gradient(90deg,${lg.stops.map(([p,c])=>`rgb(${c}) ${Math.round(p*100)}%`).join(',')})"></div><div class="labels">${lg.labels.map(l=>`<span>${l}</span>`).join('')}</div>`}
+  else{h+=`<div class="cls">${lg.items.map(([l,c])=>`<span><i style="background:rgb(${c})"></i>${l}</span>`).join('')}</div>`}
   el.innerHTML=h;
 }
 function applyLayer(){
-  const weekly=['cs','stage','rgb'].includes(layer);
-  $('#scrub').classList.toggle('off',!weekly); wk.disabled=!weekly;
+  const weekly=['cs','stage'].includes(layer);
+  document.querySelectorAll('.step').forEach(b=>b.disabled=!weekly);
   for(const r of regions){
-    const f=layerFile(r,layer,week); overlays[r].setUrl(f?imgUrl(r,f):'');
-    overlays[r].setOpacity(f?($('#opacity').value/100):0);
+    const f=layerFile(r,layer,week); overlays[r].setUrl(f?imgUrl(r,f):''); overlays[r].setOpacity(f?($('#opacity').value/100):0);
+    const wk=weekly&&week<weeks.length?site.regions[r].weeks[week].rgb:site.regions[r].weeks[weeks.length-1].rgb;
+    if(baseMode!=='osm'&&baseMode!=='none') baseImg[r].setUrl(imgUrl(r,wk));
   }
-  const lab=week>=weeks.length?'Now':weeks[week].label; $('#wk-label').textContent=week>=weeks.length?'Now (latest clear)':weeks[week].label;
+  $('#layer-name').textContent=LAYERS.find(l=>l[0]===layer)[1];
+  legendFor(layer); renderProv(); store.set('layer',layer);
+}
+function renderProv(){
   const cov=week>=weeks.length?summary.coverage_latest_week:weeks[week].coverage;
-  $('#wk-cov').textContent=cov!=null?`cloud-free ${Math.round(cov*100)}% of vegetated area`:'';
-  legendFor(layer);
+  const nowNote=week>=weeks.length?`“Now” = latest clear pass per pixel, ${dstr(isoDate(summary.now_oldest_obs||summary.latest_obs))}–${dstr(isoDate(summary.latest_obs))}`:`median of clear passes, ${weeks[week].label}`;
+  $('#prov').innerHTML=`<span>Latest clear pass <b>${dstr(isoDate(summary.latest_obs))}</b></span><span>${nowNote}</span><span>cloud-free ${Math.round((cov||0)*100)}% of tree area</span>`;
 }
+// stepper
+const st=$('#stepper');
+function buildStepper(){
+  st.innerHTML=`<button class="playbtn" id="btn-play" aria-label="Play weeks">▶</button>`+weeks.map((w,i)=>`<button class="step" data-w="${i}" aria-pressed="${i===week}"><b>${w.label}</b><small>${Math.round(w.coverage*100)}% clear</small></button>`).join('')+`<button class="step" data-w="${weeks.length}" aria-pressed="${week===weeks.length}"><b>Now</b><small>latest clear</small></button>`;
+  st.querySelectorAll('.step').forEach(b=>b.onclick=()=>{week=+b.dataset.w;st.querySelectorAll('.step').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.w===week)));applyLayer()});
+  let timer=null; $('#btn-play').onclick=()=>{ if(timer){clearInterval(timer);timer=null;$('#btn-play').textContent='▶';return} $('#btn-play').textContent='❚❚'; timer=setInterval(()=>{week=(week+1)%(weeks.length+1);st.querySelectorAll('.step').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.w===week)));applyLayer()},1400) };
+}
+buildStepper();
+let baseMode=store.get('base')||'grey';
+$('#sel-base').value=baseMode;
 function applyBase(){
-  const v=$('#sel-base').value;
+  baseMode=$('#sel-base').value; store.set('base',baseMode);
   if(osm){map.removeLayer(osm);osm=null}
-  for(const r of regions){ baseImg[r].setUrl(v==='rgb'?imgUrl(r,site.regions[r].weeks[weeks.length-1].rgb):''); baseImg[r].setOpacity(v==='rgb'?1:0); }
-  if(v==='osm'){osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{pane:'basepane',attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(map);
+  for(const r of regions){
+    const show=baseMode==='grey'||baseMode==='rgb';
+    baseImg[r].setOpacity(show?1:0);
+    const el=baseImg[r].getElement(); if(el) el.style.filter=baseMode==='grey'?'grayscale(1) brightness(.95)':'none';
+    baseImg[r].options.className=baseMode==='grey'?'base-grey':'';
+  }
+  if(baseMode==='osm'){osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{pane:'basepane',attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(map);
     osm.once('tileerror',()=>{ $('#legend').insertAdjacentHTML('beforeend','<div class="muted">Street tiles are blocked in this viewer; use the GitHub Pages copy for a street base.</div>')})}
+  applyLayer();
 }
-sel.onchange=()=>{layer=sel.value;applyLayer()}; wk.oninput=()=>{week=+wk.value;applyLayer()}; $('#opacity').oninput=applyLayer; $('#sel-base').onchange=applyBase;
-let timer=null; $('#btn-play').onclick=()=>{ if(timer){clearInterval(timer);timer=null;$('#btn-play').textContent='▶';return} $('#btn-play').textContent='❚❚'; timer=setInterval(()=>{week=(week+1)%(weeks.length+1);wk.value=week;applyLayer()},1400) };
+sel.onchange=()=>{layer=sel.value;applyLayer()}; $('#opacity').oninput=applyLayer; $('#sel-base').onchange=applyBase;
 $('#btn-layers').onclick=()=>{const b=$('#layerbox');b.hidden=!b.hidden;$('#btn-layers').setAttribute('aria-expanded',String(!b.hidden))};
-if(innerWidth<640) $('#layerbox').hidden=true, $('#btn-layers').setAttribute('aria-expanded','false');
+map.on('click',()=>{$('#layerbox').hidden=true;$('#btn-layers').setAttribute('aria-expanded','false')});
 
 // ---------------------------------------------------------------- vector layers
-function rampColor(x){x=Math.max(0,Math.min(1,x))*3;const i=Math.min(2,Math.floor(x)),f=x-i;const c=RAMP[i].map((v,j)=>Math.round(v*(1-f)+RAMP[i+1][j]*f));return `rgb(${c})`}
-function spark(series,w=64,h=20){const vals=Object.values(series||{});if(!vals.some(v=>v!=null))return'';const n=vals.length;const pts=vals.map((v,i)=>v==null?null:[(i/(n-1))*(w-2)+1,h-1-Math.max(0,Math.min(1,v))*(h-3)]).filter(Boolean);const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');const last=pts[pts.length-1];return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${d}" fill="none" stroke="${cssVar('--accent')}" stroke-width="1.5"/><circle cx="${last[0]}" cy="${last[1]}" r="2.2" fill="${cssVar('--accent')}"/></svg>`}
-function stagePill(p){ // choose dominant non-green stage
-  if(p.peak_fraction!=null){ if(p.peak_fraction>0.35) return `<span class="pill s3">peak colour</span>`; if(p.intensity>0.15) return `<span class="pill s2">turning</span>`; return `<span class="pill s1">mostly green</span>` }
-  const sf=p.stage_fraction||{}; const best=Object.entries(sf).sort((a,b)=>b[1]-a[1])[0]; if(!best) return '';
-  const k={'green':1,'turning':2,'peak':3,'past peak':4}[best[0]]; return `<span class="pill s${k}">${STAGE[k][0]}</span>`;
-}
-function peakText(d){ if(d==null||isNaN(d)) return 'no estimate'; if(d<-10) return 'past peak'; if(d<=-3) return 'just past peak'; if(d<=3) return 'peak now'; if(d<=10) return `peak in ~${Math.round(d)} d`; return `peak in ~${Math.round(d/7)} wk`}
-const clusterLayers={}, destLayer=L.layerGroup(), stationLayer=L.layerGroup(), reportLayer=L.layerGroup();
-const allClusters=[]; const seenKeys=new Set();
-for(const r of regions){
-  const g=L.geoJSON(clusters[r],{pane:'vecpane',style:f=>({color:rampColor(f.properties.intensity),weight:f.properties.rank<=15?2.2:1.2,fillColor:rampColor(f.properties.intensity),fillOpacity:.18,opacity:.95}),
-    onEachFeature:(f,l)=>{l.bindPopup(()=>clusterPopup(f.properties));allClusters.push({f,l,region:r})}});
-  g.addTo(map); clusterLayers[r]=g;
-  for(const f of dests[r].features){const p=f.properties;const m=L.circleMarker([f.geometry.coordinates[1],f.geometry.coordinates[0]],{pane:'vecpane',radius:7,color:'#111',weight:1.2,fillColor:rampColor(p.intensity),fillOpacity:.95}).bindPopup(()=>destPopup(p));m._p=p;m.addTo(destLayer)}
-}
-// rank badges for top hotspots (per region)
+const haloLayer=L.geoJSON(hotspots,{pane:'vecpane',style:{color:'#0f1113',weight:4,opacity:.6,fill:false},interactive:false});
+const hotLayer=L.geoJSON(hotspots,{pane:'vecpane',style:{color:'#ffffff',weight:1.6,opacity:.95,fillColor:'#ffffff',fillOpacity:.04},onEachFeature:(f,l)=>{l.bindPopup(()=>clusterPopup(f.properties));l.on('mouseover',()=>l.setStyle({weight:2.6}));l.on('mouseout',()=>l.setStyle({weight:1.6}))}});
+const hotIndex=new Map(); hotLayer.eachLayer(l=>hotIndex.set(l.feature.properties.rank,l));
 const badges=L.layerGroup();
-for(const r of regions){ for(const f of clusters[r].features.slice(0,12)){ const p=f.properties; L.marker([p.lat,p.lon],{pane:'vecpane',icon:L.divIcon({className:'',html:`<div class="rank-badge">${p.rank}</div>`,iconSize:[22,22],iconAnchor:[11,11]}),interactive:false}).addTo(badges) } }
-badges.addTo(map); destLayer.addTo(map);
+const badgeMarkers=hotspots.features.map(f=>{const p=f.properties;return {rank:p.rank,m:L.marker([p.lat,p.lon],{pane:'labelpane',icon:L.divIcon({className:'',html:`<div class="rank-badge">${p.rank}</div>`,iconSize:[22,22],iconAnchor:[11,11]}),interactive:false})}});
+function updateBadges(){const z=map.getZoom();const n=z<10?8:z<12?20:999;badges.clearLayers();badgeMarkers.filter(b=>b.rank<=n).forEach(b=>badges.addLayer(b.m))}
+const destLayer=L.layerGroup(); const destMarkers=[];
+for(const f of dests.features){const p=f.properties;const m=L.circleMarker([f.geometry.coordinates[1],f.geometry.coordinates[0]],{pane:'vecpane',radius:5+Math.round(p.visit_score/25),color:rampColor(p.intensity),weight:2.5,fillColor:'#1b1a18',fillOpacity:.55}).bindPopup(()=>destPopup(p));m._p=p;destMarkers.push(m);m.addTo(destLayer)}
+const labelLayer=L.layerGroup();
+const WATER=[['Puget Sound',-122.47,47.56],['Lake Washington',-122.25,47.62],['Lake Sammamish',-122.08,47.59],['Elliott Bay',-122.37,47.60]];
+const MAJOR=new Set(['Bellevue','Kirkland','Redmond','Issaquah','Renton','Kent','Auburn','Federal Way','North Bend','Snoqualmie Pass','Enumclaw','Vashon','Woodinville','Carnation','Skykomish','Maple Valley']);
+for(const p of places.places){const m=L.marker([p.lat,p.lon],{pane:'labelpane',icon:L.divIcon({className:'',html:`<div class="plabel" data-tier="${MAJOR.has(p.name)?'major':'minor'}">${p.name}</div>`,iconSize:[0,0],iconAnchor:[-4,6]}),interactive:false});labelLayer.addLayer(m)}
+for(const [n,lon,lat] of WATER) labelLayer.addLayer(L.marker([lat,lon],{pane:'labelpane',icon:L.divIcon({className:'',html:`<div class="plabel water">${n}</div>`,iconSize:[0,0],iconAnchor:[30,6]}),interactive:false}));
+const stationLayer=L.layerGroup(), reportLayer=L.layerGroup();
 for(const f of stations.features){const p=f.properties;L.marker([f.geometry.coordinates[1],f.geometry.coordinates[0]],{pane:'vecpane',icon:L.divIcon({className:'',html:'<div class="stn"></div>',iconSize:[12,11],iconAnchor:[6,6]})}).bindPopup(()=>stationPopup(p)).addTo(stationLayer)}
-for(const f of reports.features){const p=f.properties;L.marker([f.geometry.coordinates[1],f.geometry.coordinates[0]],{pane:'vecpane',icon:L.divIcon({className:'',html:'<div class="rep"></div>',iconSize:[14,14],iconAnchor:[7,7]})}).bindPopup(()=>reportPopup(p)).addTo(reportLayer)}
-$('#chk-clusters').onchange=e=>{for(const r of regions){e.target.checked?clusterLayers[r].addTo(map):map.removeLayer(clusterLayers[r])} e.target.checked?badges.addTo(map):map.removeLayer(badges)};
+const reportMarkers=[];
+for(const f of reports.features){const p=f.properties;const m=L.marker([f.geometry.coordinates[1],f.geometry.coordinates[0]],{pane:'vecpane',icon:L.divIcon({className:'',html:'<div class="rep"></div>',iconSize:[13,13],iconAnchor:[7,7]})}).bindPopup(()=>reportPopup(p));m._p=p;reportMarkers.push(m);m.addTo(reportLayer)}
+haloLayer.addTo(map); hotLayer.addTo(map); badges.addTo(map); destLayer.addTo(map); labelLayer.addTo(map);
+function updateLabels(){const z=map.getZoom(); labelLayer.eachLayer(l=>{const el=l.getElement(); if(!el) return; const d=el.querySelector('.plabel'); const tier=d.dataset.tier; el.style.display=(d.classList.contains('water')||z>=11.5||(tier==='major'&&z>=9))?'':'none'})}
+map.on('zoomend',()=>{updateBadges();updateLabels()}); updateBadges(); setTimeout(updateLabels,0);
+$('#chk-clusters').onchange=e=>{[haloLayer,hotLayer,badges].forEach(l=>e.target.checked?l.addTo(map):map.removeLayer(l))};
 $('#chk-dest').onchange=e=>e.target.checked?destLayer.addTo(map):map.removeLayer(destLayer);
+$('#chk-labels').onchange=e=>e.target.checked?labelLayer.addTo(map):map.removeLayer(labelLayer);
 $('#chk-stations').onchange=e=>e.target.checked?stationLayer.addTo(map):map.removeLayer(stationLayer);
 $('#chk-reports').onchange=e=>e.target.checked?reportLayer.addTo(map):map.removeLayer(reportLayer);
 
-function seriesTable(series){const wkMean=summary.weekly_mean_cs||{};return `<div class="tablewrap"><table><tr><th>week</th><th class="n">here</th><th class="n">region avg</th></tr>${Object.entries(series||{}).map(([k,v])=>`<tr><td>${k}</td><td class="n">${v==null?'–':fmt(v,2)}</td><td class="n">${wkMean[k]==null?'–':fmt(wkMean[k],2)}</td></tr>`).join('')}</table></div>`}
-function clusterPopup(p){return `<h3>#${p.rank} ${p.label}</h3>${stagePill(p)} <span class="muted">${p.area_ha} ha · ${p.elev_m} m</span>
- <dl class="kv" style="margin-top:6px"><dt>Visit score</dt><dd>${fmt(p.visit_score)} / 100</dd><dt>Colour intensity</dt><dd>${fmt(p.intensity,2)}</dd><dt>At peak</dt><dd>${Math.round(p.peak_fraction*100)}% of trees</dd><dt>Timing</dt><dd>${peakText(p.days_to_peak)} (${p.days_to_peak>0?'+':''}${fmt(p.days_to_peak)} d)</dd><dt>Velocity</dt><dd>${p.velocity_wk>0.04?'fast':p.velocity_wk>0.015?'moderate':'slow'} (${fmt(p.velocity_wk,3)}/wk)</dd><dt>Access</dt><dd>${p.park_fraction>0.3?'park land':p.access>0.4?'near neighbourhoods':'remote / forest'}</dd></dl>
- <div style="margin-top:6px">${spark(p.series,160,34)}</div>${seriesTable(p.series)}`}
-function destPopup(p){return `<h3>${p.name}</h3>${stagePill(p)} <span class="muted">${p.kind} · ${p.elev_m} m</span><p>${p.notes||''}</p>
- <dl class="kv"><dt>Score</dt><dd>${fmt(p.visit_score)} / 100</dd><dt>Colour intensity</dt><dd>${fmt(p.intensity,2)}</dd><dt>Trees turning</dt><dd>${Math.round(((p.stage_fraction.turning||0)+(p.stage_fraction.peak||0))*100)}%</dd><dt>At peak</dt><dd>${Math.round((p.stage_fraction.peak||0)*100)}%</dd><dt>Timing</dt><dd>${peakText(p.days_to_peak)}</dd></dl>
- <div style="margin-top:6px">${spark(p.series,160,34)}</div>${seriesTable(p.series)}<div class="muted">sampled within ${p.radius_m} m · ${p.n_veg_px} tree pixels</div>`}
-function stationPopup(p){const s=Object.entries(p.series).slice(-10);return `<h3>${p.name}</h3><span class="muted">${p.elev} m · last obs ${p.last_obs}</span>
- <dl class="kv" style="margin-top:6px"><dt>Nights ≤ 7 °C</dt><dd>${p.nights_le_7} (2025: ${p.prior['2025']?p.prior['2025'].nights_le_7:'–'})</dd><dt>Nights ≤ 2 °C</dt><dd>${p.nights_le_2}</dd><dt>Coldest night</dt><dd>${fmt(p.min_tmin,1)} °C</dd><dt>First frost</dt><dd>${p.first_frost||'none yet'}</dd></dl>
+function seriesTable(series,region){const wkMean=(site.summary[region]||summary).weekly_mean_cs||{};return `<div class="tablewrap"><table><tr><th>week</th><th class="n">here</th><th class="n">${region==='seattle'?'Seattle':'county'} avg</th></tr>${Object.entries(series||{}).map(([k,v])=>`<tr><td>${k}</td><td class="n">${v==null?'–':intensityWord(v)+' ('+fmt(v,2)+')'}</td><td class="n">${wkMean[k]==null?'–':fmt(wkMean[k],2)}</td></tr>`).join('')}</table></div>`}
+function clusterPopup(p){const sf={green:1-p.intensity>0?null:null};return `<h3>#${p.rank} ${p.label}</h3>${stagePill(p)} <span class="tag">${p.kind}</span> <span class="muted">${p.area_ha} ha · ${p.elev_m} m</span>
+ <dl class="kv"><dt>Colour</dt><dd>${intensityWord(p.intensity)} · ${Math.round(p.peak_fraction*100)}% of trees at peak</dd><dt>Timing</dt><dd>${timingText(p.days_to_peak)}</dd><dt>Trend</dt><dd>${velocityWord(p.velocity_wk)}</dd><dt>Access</dt><dd>${p.park_fraction>0.3?'park land':p.access>0.4?'near neighbourhoods':'forest / backcountry'}</dd><dt>Worth a visit</dt><dd style="display:flex;align-items:center;gap:8px">${scoreBar(p.visit_score)}</dd></dl>
+ ${spark(p.series,200,36)}${seriesTable(p.series,p.region)}`}
+function destPopup(p){return `<h3>${p.name}</h3>${stagePill(p)} <span class="tag">${p.kind}</span> <span class="muted">${p.elev_m} m</span><p style="margin:6px 0">${p.notes||''}</p>
+ ${stackBar(p.stage_fraction)}
+ <dl class="kv"><dt>Colour</dt><dd>${intensityWord(p.intensity)}</dd><dt>Timing</dt><dd>${timingText(p.days_to_peak)}</dd><dt>Worth a visit</dt><dd style="display:flex;align-items:center;gap:8px">${scoreBar(p.visit_score)}</dd></dl>
+ ${spark(p.series,200,36)}${seriesTable(p.series,p.region)}<div class="muted" style="font-size:12px">sampled within ${p.radius_m} m · ${p.n_veg_px} tree pixels</div>`}
+function stationPopup(p){const s=Object.entries(p.series).slice(-10);const pr=p.prior['2025'];return `<h3>${p.name}</h3><span class="muted">${p.elev} m · last obs ${p.last_obs.slice(4,6)}-${p.last_obs.slice(6)}</span>
+ <dl class="kv"><dt>Nights ≤ 7 °C</dt><dd>${p.nights_le_7}${pr?` (same dates 2025: ${pr.nights_le_7})`:''}</dd><dt>Nights ≤ 2 °C</dt><dd>${p.nights_le_2}</dd><dt>Coldest night</dt><dd>${fmt(p.min_tmin,1)} °C</dd><dt>First frost</dt><dd>${p.first_frost||'none yet'}</dd></dl>
  <div class="tablewrap"><table><tr><th>date</th><th class="n">min</th><th class="n">max</th><th class="n">rain mm</th></tr>${s.map(([d,v])=>`<tr><td>${d.slice(4,6)}-${d.slice(6)}</td><td class="n">${fmt(v[0],1)}</td><td class="n">${fmt(v[1],1)}</td><td class="n">${fmt(v[2],1)}</td></tr>`).join('')}</table></div>`}
-function reportPopup(p){return `<h3>${p.place}</h3><span class="pill ${p.kind==='observation'?'s3':p.kind==='model'?'s4':'s2'}">${p.kind}</span> <span class="muted">${p.date}</span><p>${p.summary}</p><a href="${p.url}" target="_blank" rel="noopener">${p.source} ↗</a>`}
+function reportPopup(p){return `<h3>${p.place}</h3><span class="tag">${p.kind}</span> <span class="muted">${p.date}</span><p style="margin:6px 0">${p.summary}</p><a href="${p.url}" target="_blank" rel="noopener">${p.source} ↗</a>`}
 
-// ---------------------------------------------------------------- bottom sheet
-const body=$('#sheet-body'); let tab='hot', filt={scope:'all',size:'all'};
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));t.setAttribute('aria-selected','true');tab=t.dataset.tab;render();$('#sheet').classList.remove('collapsed')});
+// ---------------------------------------------------------------- verdict
+function verdict(){
+  const sea=hotspots.features.filter(f=>f.properties.in_seattle), cty=hotspots.features.filter(f=>!f.properties.in_seattle&&f.properties.kind==='canopy');
+  const dSea=dests.features.filter(f=>f.properties.region==='seattle').sort((a,b)=>b.properties.visit_score-a.properties.visit_score)[0];
+  const dCty=dests.features.filter(f=>f.properties.region==='county').sort((a,b)=>b.properties.visit_score-a.properties.visit_score)[0];
+  const g=weather.gfs['Seattle']||[]; const cold=g.filter(d=>d.tmin<=5).length; const gust=Math.max(0,...g.map(d=>d.gust_max_ms||0)); const rain=Math.max(0,...g.map(d=>d.precip_mm||0));
+  const wx=(gust>=18||rain>=25)?'wind or heavy rain ahead could strip peak trees':(gust>=12||rain>=12)?'some wind and rain this week':cold>=3?'cold nights ahead will speed things up':'mild, calm week ahead';
+  const part=(d,where)=>d?`<b>${d.properties.name}</b> (${intensityWord(d.properties.intensity)}, ${timingShort(d.properties.days_to_peak)})`:'';
+  $('#verdict').innerHTML=`Best now: ${part(dCty)} in the foothills · ${part(dSea)} in the city. <span class="more">City trees ${Math.round((sumS.stage_fraction||{}).turning*100||0)}% turning, ${Math.round((sumS.stage_fraction||{}).peak*100||0)}% at peak; ${wx}.</span>`;
+}
+verdict();
+
+// ---------------------------------------------------------------- sheet
+const body=$('#sheet-body'); let tab=store.get('tab')||'hot', filt={scope:'all',kind:'all',size:'all'};
+document.querySelectorAll('.tab').forEach(t=>{t.setAttribute('aria-selected',String(t.dataset.tab===tab));t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));t.setAttribute('aria-selected','true');tab=t.dataset.tab;store.set('tab',tab);render();$('#sheet').classList.remove('collapsed')}});
 $('#grip').onclick=()=>$('#sheet').classList.toggle('collapsed');
-function flyTo(l,latlng){ $('#sheet').classList.add('collapsed'); map.flyTo(latlng,Math.max(map.getZoom(),13),{duration:.8}); setTimeout(()=>l.openPopup(),900) }
+function flyTo(l,latlng){ if(!desktop()) $('#sheet').classList.add('collapsed'); map.flyTo(latlng,Math.max(map.getZoom(),13),{duration:.8}); setTimeout(()=>l.openPopup(),900) }
+function row(p,i,extra){return `<button class="item" data-i="${i}"><span class="rank">${p.rank}</span><span class="name">${p.label||p.name}</span><span class="right">${spark(p.series)}${scoreBar(p.visit_score)}</span><span class="sub">${stagePill(p)}<span>${timingShort(p.days_to_peak)}</span>${extra||''}</span></button>`}
 function render(){
   if(tab==='hot'){
-    const feats=allClusters.filter(c=>{const p=c.f.properties;if(filt.scope==='seattle'&&!p.in_seattle)return false;if(filt.scope==='county'&&p.in_seattle)return false;if(filt.scope==='mountain'&&p.elev_m<450)return false;if(filt.size==='big'&&p.area_ha<40)return false;return true}).sort((a,b)=>b.f.properties.visit_score-a.f.properties.visit_score).slice(0,25);
-    body.innerHTML=`<div class="filters">${[['all','All'],['seattle','Seattle'],['county','Rest of county'],['mountain','Mountains']].map(([k,l])=>`<button class="btn" data-scope="${k}" aria-pressed="${filt.scope===k}">${l}</button>`).join('')}<button class="btn" data-size="big" aria-pressed="${filt.size==='big'}">≥ 40 ha</button></div>
-    <div class="list">${feats.map(c=>{const p=c.f.properties;return `<button class="item" data-i="${allClusters.indexOf(c)}"><span class="rank">${p.rank}</span><span class="name">${p.label}</span><span class="score">${fmt(p.visit_score)}</span><span class="sub">${stagePill(p)}<span>${peakText(p.days_to_peak)}</span><span>${p.area_ha} ha</span></span>${spark(p.series)}</button>`}).join('')||'<p class="muted">No hotspots match.</p>'}</div>`;
-    body.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>{filt.scope=b.dataset.scope;render()}); body.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{filt.size=filt.size==='big'?'all':'big';render()});
-    body.querySelectorAll('.item').forEach(b=>b.onclick=()=>{const c=allClusters[+b.dataset.i];flyTo(c.l,[c.f.properties.lat,c.f.properties.lon])});
+    const feats=hotspots.features.filter(f=>{const p=f.properties;if(filt.scope==='seattle'&&!p.in_seattle)return false;if(filt.scope==='county'&&(p.in_seattle||p.elev_m>=450))return false;if(filt.scope==='mountain'&&p.elev_m<450)return false;if(filt.kind!=='all'&&p.kind!==filt.kind)return false;if(filt.size==='big'&&p.area_ha<40)return false;return true}).slice(0,30);
+    body.innerHTML=`<div class="filters">${[['all','All'],['seattle','Seattle'],['county','Lowland county'],['mountain','Mountains']].map(([k,l])=>`<button class="btn" data-scope="${k}" aria-pressed="${filt.scope===k}">${l}</button>`).join('')}<button class="btn" data-kind="canopy" aria-pressed="${filt.kind==='canopy'}">Tree canopy only</button><button class="btn" data-size="big" aria-pressed="${filt.size==='big'}">≥ 40 ha</button></div>
+    <div class="list">${feats.map(f=>row(f.properties,f.properties.rank,`<span>${f.properties.area_ha} ha</span><span class="tag">${f.properties.kind}</span>`)).join('')||'<p class="muted">No hotspots match.</p>'}</div>`;
+    body.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>{filt.scope=b.dataset.scope;render()}); body.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{filt.kind=filt.kind==='canopy'?'all':'canopy';render()}); body.querySelectorAll('[data-size]').forEach(b=>b.onclick=()=>{filt.size=filt.size==='big'?'all':'big';render()});
+    body.querySelectorAll('.item').forEach(b=>b.onclick=()=>{const l=hotIndex.get(+b.dataset.i);const p=l.feature.properties;flyTo(l,[p.lat,p.lon])});
   } else if(tab==='places'){
-    const all=[];destLayer.eachLayer(m=>all.push(m)); all.sort((a,b)=>b._p.visit_score-a._p.visit_score);
-    body.innerHTML=`<p class="muted" style="margin:4px 0 8px">Named destinations scored from the imagery within their footprint. Tap to zoom.</p><div class="list">${all.map((m,i)=>{const p=m._p;return `<button class="item" data-i="${i}"><span class="rank">${i+1}</span><span class="name">${p.name}</span><span class="score">${fmt(p.visit_score)}</span><span class="sub">${stagePill(p)}<span>${peakText(p.days_to_peak)}</span><span>${p.kind}</span></span>${spark(p.series)}</button>`}).join('')}</div>`;
+    const all=destMarkers.slice().sort((a,b)=>b._p.visit_score-a._p.visit_score);
+    body.innerHTML=`<p class="muted" style="margin:4px 0 8px">Named destinations scored from the imagery inside their footprint. Tap to zoom.</p><div class="list">${all.map((m,i)=>row({...m._p,rank:i+1},i,`<span class="tag">${m._p.kind}</span>`)).join('')}</div>`;
     body.querySelectorAll('.item').forEach(b=>b.onclick=()=>{const m=all[+b.dataset.i];flyTo(m,m.getLatLng())});
   } else if(tab==='weather'){
-    const g=weather.gfs; const sea=g['Seattle']||[]; const cold=sea.filter(d=>d.tmin<=5).length; const gust=Math.max(...sea.map(d=>d.gust_max_ms||0)); const rain=Math.max(...sea.map(d=>d.precip_mm||0));
-    const st=stations.features.map(f=>f.properties).filter(p=>p.id==='USW00024233'||p.id==='USW00024234'||p.id==='USW00094290');
-    const seatac=st.find(p=>p.id==='USW00024233')||st[0];
+    const g=weather.gfs; const sea=g['Seattle']||[]; const cold=sea.filter(d=>d.tmin<=5).length; const gust=Math.max(0,...sea.map(d=>d.gust_max_ms||0)); const rain=Math.max(0,...sea.map(d=>d.precip_mm||0));
+    const st=stations.features.map(f=>f.properties); const seatac=st.find(p=>p.id==='USW00024233')||st[0]; const pr=seatac&&seatac.prior['2025'];
     const risk=summary.leafdrop_risk||'low';
-    body.innerHTML=`<div class="stat"><div><b>${seatac?fmt(seatac.min_tmin,1)+' °C':'–'}</b><span>coldest night since Sep 15 (${seatac?seatac.name:''})</span></div><div><b>${seatac?seatac.nights_le_7:'–'}</b><span>nights ≤ 7 °C (2025 same window: ${seatac&&seatac.prior['2025']?seatac.prior['2025'].nights_le_7:'–'})</span></div><div><b>${cold}</b><span>forecast nights ≤ 5 °C, next 7 days</span></div><div><b style="color:var(--${risk==='high'?'bad':risk==='moderate'?'warn':'good'})">${risk}</b><span>leaf-drop risk (gust ${fmt(gust*2.237)} mph, rain ${fmt(rain)} mm/day max)</span></div></div>
-    <div class="note">${cold>=3?'Several cold nights ahead will push turning trees toward peak quickly.':'Mild nights ahead: colour will keep developing gradually.'} ${risk==='high'?'A windy or wet day in the forecast can strip trees that are already at peak, so go before it.':risk==='moderate'?'Some wind or rain is coming; peak-stage spots are best visited early in the week.':'No leaf-stripping wind or heavy rain in the forecast.'}</div>
-    <h3 style="margin:10px 0 4px">7-day forecast (GFS ${weather.gfs_cycle})</h3>${Object.entries(g).map(([name,days])=>`<details ${name==='Seattle'?'open':''}><summary>${name}</summary><div class="tablewrap"><table><tr><th>date</th><th class="n">low °C</th><th class="n">high °C</th><th class="n">gust mph</th><th class="n">rain mm</th></tr>${days.map(d=>`<tr><td>${d.date.slice(5)}</td><td class="n" style="${d.tmin<=2?'color:var(--bad)':d.tmin<=5?'color:var(--warn)':''}">${fmt(d.tmin,1)}</td><td class="n">${fmt(d.tmax,1)}</td><td class="n" style="${d.gust_max_ms>=15?'color:var(--bad)':''}">${fmt((d.gust_max_ms||0)*2.237)}</td><td class="n" style="${d.precip_mm>=12?'color:var(--warn)':''}">${fmt(d.precip_mm,1)}</td></tr>`).join('')}</table></div></details>`).join('')}
+    body.innerHTML=`<div class="stat"><div><b>${seatac?fmt(seatac.min_tmin,1)+' °C':'–'}</b><span>coldest night since Sep 15 (${seatac?seatac.name:''})</span></div><div><b>${seatac?seatac.nights_le_7:'–'}</b><span>nights ≤ 7 °C so far (same dates 2025: ${pr?pr.nights_le_7:'–'})</span></div><div><b>${cold}</b><span>forecast nights ≤ 5 °C, next 7 days</span></div><div><b>${risk}</b><span>leaf-drop risk · gust ${fmt(gust*2.237)} mph, rain ${fmt(rain)} mm/day max</span></div></div>
+    <div class="note">${cold>=3?'Several cold nights ahead will push turning trees toward peak quickly.':'Mild nights ahead: colour keeps developing gradually.'} ${risk==='high'?'A windy or wet day in the forecast can strip trees already at peak, so go before it.':risk==='moderate'?'Some wind or rain is coming; peak-stage spots are best visited early in the week.':'No leaf-stripping wind or heavy rain in the forecast.'} ${seatac&&pr?(seatac.nights_le_7<pr.nights_le_7?`This autumn has had fewer cold nights than 2025 by the same date, which favours a later, longer lowland season.`:`Cold nights are running ahead of 2025, which favours an earlier lowland peak.`):''}</div>
+    <h3 style="margin:10px 0 4px">7-day forecast (GFS ${weather.gfs_cycle})</h3>${Object.entries(g).map(([name,days])=>`<details ${name==='Seattle'?'open':''}><summary>${name}</summary><div class="tablewrap"><table><tr><th>date</th><th class="n">low °C</th><th class="n">high °C</th><th class="n">gust mph</th><th class="n">rain mm</th></tr>${days.map(d=>`<tr><td>${d.date.slice(5)}</td><td class="n">${d.tmin<=2?'<b>'+fmt(d.tmin,1)+' frost</b>':d.tmin<=5?'<b>'+fmt(d.tmin,1)+'</b> cold':fmt(d.tmin,1)}</td><td class="n">${fmt(d.tmax,1)}</td><td class="n">${d.gust_max_ms>=15?'<b>'+fmt(d.gust_max_ms*2.237)+' windy</b>':fmt((d.gust_max_ms||0)*2.237)}</td><td class="n">${d.precip_mm>=12?'<b>'+fmt(d.precip_mm,1)+' wet</b>':fmt(d.precip_mm,1)}</td></tr>`).join('')}</table></div></details>`).join('')}
     <h3 style="margin:10px 0 4px">Recent nights across the county (HRRR analysis)</h3><div class="tablewrap"><table><tr><th>date</th><th class="n">county mean low °C</th><th class="n">max gust mph</th></tr>${weather.hrrr.days.slice(-10).map((d,i,a)=>{const j=weather.hrrr.days.length-a.length+i;return `<tr><td>${d.slice(5)}</td><td class="n">${fmt(weather.hrrr.county_mean_tmin[j],1)}</td><td class="n">${fmt(weather.hrrr.county_max_gust_ms[j]*2.237)}</td></tr>`}).join('')}</table></div>
-    <p class="muted">Station observations end ${seatac?seatac.last_obs:''} (GHCN daily); HRRR fills later days. Turn on “Weather stations” in Layers to see each station.</p>`;
+    <p class="muted">Station observations end ${seatac?seatac.last_obs.slice(4,6)+'-'+seatac.last_obs.slice(6):''} (GHCN daily); HRRR fills later days. Turn on “Weather stations” in Layers to see each station.</p>`;
   } else if(tab==='reports'){
     const fs=reports.features.slice().sort((a,b)=>b.properties.date.localeCompare(a.properties.date));
-    body.innerHTML=`<p class="muted" style="margin:4px 0 8px">Dated reports and outlooks gathered ${reports.retrieved}. Observation = someone saw it; outlook = a forecast; model = a latitude/elevation estimate, not a sighting. Toggle pins in Layers.</p><div class="list">${fs.map((f,i)=>{const p=f.properties;return `<button class="item" data-i="${i}" style="grid-template-columns:1fr auto"><span class="name">${p.place}</span><span class="score">${p.date.slice(5)}</span><span class="sub" style="grid-column:1/3;display:block;white-space:normal"><span class="pill ${p.kind==='observation'?'s3':p.kind==='model'?'s4':'s2'}">${p.kind}</span> ${p.summary} <a href="${p.url}" target="_blank" rel="noopener">${p.source} ↗</a></span></button>`}).join('')}</div>`;
-    body.querySelectorAll('.item').forEach(b=>b.onclick=e=>{if(e.target.tagName==='A')return;const f=fs[+b.dataset.i];$('#chk-reports').checked=true;reportLayer.addTo(map);let target=null;reportLayer.eachLayer(l=>{const ll=l.getLatLng();if(Math.abs(ll.lat-f.geometry.coordinates[1])<1e-6&&Math.abs(ll.lng-f.geometry.coordinates[0])<1e-6)target=l});if(target)flyTo(target,target.getLatLng())});
+    body.innerHTML=`<p class="muted" style="margin:4px 0 8px">Dated reports gathered ${reports.retrieved}. <i>observation</i> = someone saw it; <i>outlook</i> = a forecast; <i>model</i> = a latitude/elevation estimate, not a sighting.</p><div class="list">${fs.map((f,i)=>{const p=f.properties;return `<button class="item" data-i="${i}" style="grid-template-columns:1fr auto"><span class="name">${p.place}</span><span class="muted" style="font-size:13px">${p.date.slice(5)}</span><span class="sub" style="grid-column:1/3;display:block;white-space:normal"><span class="tag">${p.kind}</span> ${p.summary} <a href="${p.url}" target="_blank" rel="noopener">${p.source} ↗</a></span></button>`}).join('')}</div>`;
+    body.querySelectorAll('.item').forEach(b=>b.onclick=e=>{if(e.target.tagName==='A')return;const f=fs[+b.dataset.i];$('#chk-reports').checked=true;reportLayer.addTo(map);const target=reportMarkers.find(m=>m._p===f.properties);if(target)flyTo(target,target.getLatLng())});
   } else {
-    const sf=summary.stage_fraction||{};
-    body.innerHTML=`<div class="about"><div class="stat"><div><b>${Math.round((sf.turning||0)*100)}%</b><span>of Seattle's deciduous trees turning</span></div><div><b>${Math.round((sf.peak||0)*100)}%</b><span>at peak colour</span></div><div><b>${summary.median_days_to_peak!=null?Math.round(summary.median_days_to_peak)+' d':'–'}</b><span>median days to peak (Seattle)</span></div><div><b>${summary.latest_obs||'–'}</b><span>latest clear observation</span></div></div>
+    const sf=sumS.stage_fraction||{}, cf=sumC.stage_fraction||{};
+    body.innerHTML=`<div class="about"><div class="stat"><div><b>${Math.round((sf.turning||0)*100)}% / ${Math.round((cf.turning||0)*100)}%</b><span>deciduous trees turning, Seattle / county</span></div><div><b>${Math.round((sf.peak||0)*100)}% / ${Math.round((cf.peak||0)*100)}%</b><span>at peak colour, Seattle / county</span></div><div><b>${sumS.median_days_to_peak!=null?dstr(new Date(today.getTime()+sumS.median_days_to_peak*864e5)):'–'}</b><span>median predicted peak, Seattle</span></div><div><b>${dstr(isoDate(summary.latest_obs))}</b><span>latest clear observation</span></div></div>
     <h3>How this map is made</h3>
-    <p><b>Imagery.</b> Every Sentinel-2 L2A scene over MGRS tiles 10TET and 10TFT since Sept 1 is read directly from the public AWS archive at 10 m (Seattle) and 20 m (King County). Clouds, cirrus, shadows and snow are removed per pixel with the scene classification band plus blue and SWIR brightness tests, then dilated two pixels. Each week's layer is the median of its clear observations; “Now” is the latest clear observation per pixel, back-filled from the last two weeks where the newest pass was cloudy.</p>
-    <p><b>Spectral colour measures.</b> Hue and chroma are computed from the red, green and blue bands, so a pixel's shift from green toward yellow, orange and red is measured directly. The Plant Senescence Reflectance Index (red − blue) / red-edge 2 tracks the carotenoid-to-chlorophyll ratio that rises as leaves senesce. NDVI (NIR, red) and the red-edge chlorophyll index track greenness loss; NDMI (NIR, SWIR) flags leaf-off. The colour score blends hue shift and PSRI rise relative to each pixel's own early-September baseline, scaled down when NDVI shows the leaves are already gone.</p>
-    <p><b>Stages.</b> Green, turning, peak and past-peak are thresholds on the colour score and on the NDVI drop. Evergreen conifers and lawns stay green and are not counted.</p>
-    <p><b>Phenology.</b> The same indices were computed for autumn 2023, 2024 and 2025 at 80 m. Each pixel gets a typical colour curve, peak week and autumn amplitude. Pixels whose autumn amplitude is small are treated as evergreen. This year's progress is matched against that curve to estimate how many days ahead of or behind a normal year the spot is, which gives the predicted peak date. The prediction is pulled earlier when cold nights are forecast, more so at elevation, and the map flags leaf-drop risk from forecast gusts and rain.</p>
-    <p><b>Weather.</b> Nightly lows and cold-night counts come from NOAA GHCN stations (airports, SNOTEL sites) and from HRRR 3 km analyses where stations lag; the 7-day outlook is the latest GFS run. Cold nights accelerate colour; a strong wind or heavy rain after peak ends the show.</p>
-    <p><b>Hotspots and scores.</b> Tree pixels are aggregated to 100 m cells in Seattle and 200 m cells elsewhere; the top tenth by colour score are grouped into contiguous hotspots. The “worth visiting now” score weights colour intensity 45%, timing against the predicted peak 20%, public access (park land or proximity to neighbourhoods) 20% and size 15%. Named destinations are scored on the pixels inside their footprint.</p>
-    <p><b>Limits.</b> A 10 m pixel mixes several trees; street trees under cloud for two weeks show their last clear state; and the phenology baseline is coarse, so timing is a guide, not a promise. Reports are quoted from their sources and dated.</p>
-    <p class="muted">Generated ${site.generated}. Code and pipeline: the <code>pipeline/</code> folder of this repository.</p></div>`;
+    <p><b>Imagery.</b> Every Sentinel-2 L2A scene over MGRS tiles 10TET and 10TFT since Sept 1 is read from the public AWS archive at 10 m (Seattle) and 20 m (King County). Clouds, cirrus, shadows, snow and haze over vegetation are removed per pixel with the scene classification band plus blue and SWIR brightness tests, then dilated. Each week's layer is the median of its clear observations; “Now” is the latest clear observation per pixel, back-filled from the previous two weeks where the newest pass was cloudy, and the strip above states the date range actually used.</p>
+    <p><b>Colour measures.</b> Hue and chroma come from the red, green and blue bands, so a pixel's shift from green toward yellow, orange and red is measured directly. The Plant Senescence Reflectance Index, (red − blue) / red-edge 2, tracks the carotenoid-to-chlorophyll ratio that rises as leaves senesce. NDVI and the red-edge chlorophyll index track greenness loss; NDMI (NIR, SWIR) flags leaf-off. The colour score blends hue shift and PSRI rise relative to each pixel's own early-September baseline, scaled down once NDVI shows the leaves are gone.</p>
+    <p><b>Stages.</b> Green, turning, peak and past-peak are thresholds on the colour score and the NDVI drop. Conifers and lawns stay green and are not counted. Hotspot timing is reconciled with stage: a spot whose trees read as peak is never shown as “peak in a week”.</p>
+    <p><b>Phenology.</b> Autumn 2023, 2024 and 2025 were processed the same way at 80 m. Each pixel gets a typical colour curve, peak week and autumn amplitude; small amplitude means evergreen. This year's progress is matched to that curve to estimate how many days ahead of or behind a normal year the spot is, which gives the predicted peak date, pulled earlier when cold nights are forecast and more so at elevation.</p>
+    <p><b>Weather.</b> Nightly lows and cold-night counts come from NOAA GHCN stations (airports, SNOTEL) compared with the same dates in prior years, HRRR 3 km analyses fill the days after the station feed, and the 7-day outlook is the latest GFS run. Cold nights accelerate colour; strong wind or heavy rain after peak ends the show.</p>
+    <p><b>Hotspots and scores.</b> Tree pixels are aggregated to 100 m cells in Seattle and 200 m cells elsewhere; the top tenth by colour score are grouped into contiguous hotspots and labelled by the nearest destination, neighbourhood or town. “Canopy” hotspots are mostly tree cover; “meadow / shrub” ones are huckleberry and mountain-ash slopes. The worth-a-visit score weights colour intensity 45%, timing against the predicted peak 20%, public access 20% and size 15%; it ranks places, it is not a measurement.</p>
+    <p><b>Colour on this page.</b> The green–yellow–orange–red scale is used only to show colour state, on the map, in the stage pills and at the end of each sparkline. Timing and diagnostic layers use greys and teals so that orange never means anything but fall colour. The imagery base is greyscale by default for the same reason.</p>
+    <p><b>Limits.</b> A 10 m pixel mixes several trees; street trees under cloud for two weeks show their last clear state; the phenology baseline is coarse, so timing is a guide. Reports are quoted from and linked to their sources.</p>
+    <p class="muted">Generated ${site.generated}. Pipeline code: the <code>pipeline/</code> folder of this repository.</p></div>`;
   }
 }
-// drag the sheet
-let drag=null; const sheet=$('#sheet');
-sheet.querySelector('.grip').addEventListener('pointerdown',e=>{drag={y:e.clientY,h:sheet.getBoundingClientRect().height};e.target.setPointerCapture(e.pointerId)});
-sheet.querySelector('.grip').addEventListener('pointermove',e=>{if(!drag)return;const h=Math.max(52,Math.min(innerHeight*.85,drag.h+(drag.y-e.clientY)));document.documentElement.style.setProperty('--sheet',h+'px');sheet.classList.remove('collapsed')});
-sheet.querySelector('.grip').addEventListener('pointerup',()=>{drag=null});
-render(); applyLayer(); applyBase();
+// drag the sheet (phone)
+let drag=null; const sheet=$('#sheet'); const grip=sheet.querySelector('.grip');
+grip.addEventListener('pointerdown',e=>{drag={y:e.clientY,h:sheet.getBoundingClientRect().height};grip.setPointerCapture(e.pointerId)});
+grip.addEventListener('pointermove',e=>{if(!drag)return;const h=Math.max(84,Math.min(innerHeight*.85,drag.h+(drag.y-e.clientY)));document.documentElement.style.setProperty('--sheet',h+'px');sheet.classList.remove('collapsed')});
+grip.addEventListener('pointerup',()=>{drag=null});
+addEventListener('resize',()=>map.invalidateSize());
+render(); applyBase();
 })();
 </script>

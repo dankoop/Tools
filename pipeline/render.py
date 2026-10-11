@@ -11,9 +11,21 @@ from PIL import Image
 import config as C
 
 RAMP_CS = [(0.10, 0.50, 0.15), (0.95, 0.85, 0.10), (0.98, 0.55, 0.05), (0.85, 0.10, 0.05)]      # green→yellow→orange→red
-STAGE_COL = {1: (70, 140, 60), 2: (240, 210, 40), 3: (235, 90, 20), 4: (120, 85, 60)}
-RAMP_DIV = [(0.10, 0.35, 0.75), (0.93, 0.93, 0.90), (0.80, 0.15, 0.10)]                           # blue→white→red
-RAMP_PEAK = [(0.55, 0.20, 0.55), (0.90, 0.30, 0.10), (0.98, 0.80, 0.10), (0.35, 0.60, 0.25), (0.10, 0.30, 0.55)]  # past→now→soon→later→far
+STAGE_COL = {1: (26, 128, 38), 2: (242, 217, 26), 3: (250, 140, 13), 4: (120, 85, 60)}   # same hues as the colour ramp
+# Non-colour diagnostics use cool / neutral hues so orange and yellow only ever mean fall colour.
+RAMP_DIV = [(0.36, 0.23, 0.54), (0.90, 0.90, 0.90), (0.12, 0.37, 0.42)]                           # purple→grey→teal
+RAMP_TEAL = [(0.86, 0.90, 0.91), (0.44, 0.71, 0.76), (0.12, 0.37, 0.42), (0.03, 0.18, 0.23)]        # light→dark teal
+RAMP_GREY = [(0.86, 0.86, 0.86), (0.35, 0.35, 0.35)]
+# days-to-peak: past = grey, now = darkest teal, later = progressively lighter
+PEAK_STOPS = [(0.0, (0.72, 0.72, 0.72)), (0.30, (0.55, 0.55, 0.55)), (0.375, (0.03, 0.20, 0.26)), (0.50, (0.15, 0.45, 0.52)),
+              (0.75, (0.44, 0.71, 0.76)), (1.0, (0.84, 0.91, 0.93))]
+
+def ramp_stops(x, stops):
+    x = np.clip(x, 0, 1); out = np.zeros(x.shape + (3,), np.float32)
+    for (p0, c0), (p1, c1) in zip(stops[:-1], stops[1:]):
+        m = (x >= p0) & (x <= p1); f = ((x - p0) / max(p1 - p0, 1e-6))[..., None]
+        out[m] = (np.array(c0) * (1 - f) + np.array(c1) * f)[m]
+    return out * 255
 
 def ramp(x, ramp_cols):
     x = np.clip(x, 0, 1) * (len(ramp_cols) - 1); i = np.clip(x.astype(int), 0, len(ramp_cols) - 2); f = (x - i)[..., None]
@@ -45,6 +57,8 @@ def main():
     w, s = to_ll.transform(bounds[0], bounds[1]); e, n = to_ll.transform(bounds[2], bounds[3])
     layers = {"bounds": [[s, w], [n, e]], "width": dw, "height": dh, "layers": {}}
     veg = warp(z["veg"].astype(np.uint8), T, C.UTM, dst_T, dst_crs, shape, Resampling.nearest).astype(bool)
+    region_mask = warp((z["sea_mask"] if a.region == "seattle" else z["kc_mask"]).astype(np.uint8), T, C.UTM, dst_T, dst_crs, shape, Resampling.nearest).astype(bool)
+    veg &= region_mask
 
     def save_rgba(name, rgb, alpha, fmt="png"):
         img = np.dstack([np.clip(rgb, 0, 255).astype(np.uint8), (alpha * 255).astype(np.uint8)])
@@ -52,7 +66,7 @@ def main():
         if fmt == "png":
             Image.fromarray(img, "RGBA").quantize(colors=255, method=Image.Quantize.FASTOCTREE).save(p, optimize=True)
         else:
-            Image.fromarray(img[..., :3], "RGB").save(p, quality=82)
+            Image.fromarray(img, "RGBA").save(p, "WEBP", quality=80, method=4)
         return os.path.basename(p)
 
     def q(a8, lo, hi):   # undo q8 quantisation
@@ -68,19 +82,19 @@ def main():
 
     continuous("cs_now", "cs_now", 0, 1, RAMP_CS, "Fall colour now", ["green", "turning", "peak", "deep red"], alpha_from=lambda x: 0.25 + 0.75 * x)
     continuous("dhue", "dhue", -10, 60, RAMP_CS, "Hue shift since early Sept (°)", ["0°", "+20°", "+40°", "+60°"])
-    continuous("dndvi", "dndvi", -0.6, 0.2, RAMP_DIV[::-1], "NDVI change since early Sept", ["-0.6 (leaf-off)", "0", "+0.2"])
-    continuous("velocity", "velocity", -0.05, 0.15, RAMP_CS, "Change velocity (PSRI per week)", ["steady", "slow", "fast", "very fast"])
-    continuous("decid", "decid", 0, 1, [(0.15, 0.35, 0.15), (0.6, 0.75, 0.3), (0.95, 0.8, 0.2)], "Deciduous likelihood", ["evergreen", "mixed", "deciduous"])
-    continuous("confidence", "confidence", 0, 1, [(0.4, 0.4, 0.4), (0.2, 0.6, 0.8)], "Prediction confidence", ["low", "high"])
-    # days to peak: diverging categorical ramp, only where deciduous
+    continuous("dndvi", "dndvi", -0.6, 0.2, RAMP_DIV, "Greenness change since early Sept (NDVI)", ["-0.6 (leaf-off)", "0", "+0.2"])
+    continuous("velocity", "velocity", -0.05, 0.15, RAMP_TEAL, "Change velocity (senescence index per week)", ["steady", "slow", "fast", "very fast"])
+    continuous("decid", "decid", 0, 1, RAMP_TEAL[:3], "Deciduous likelihood", ["evergreen", "mixed", "deciduous"])
+    continuous("confidence", "confidence", 0, 1, RAMP_GREY, "Prediction confidence", ["low", "high"])
+    # days to peak: grey = past, dark teal = now, lighter = later; only where deciduous
     a8 = warp(z["days_to_peak"], T, C.UTM, dst_T, dst_crs, shape, Resampling.average); v = q(a8, -21, 35)
     m = np.isfinite(v) & veg
-    rgb = ramp(np.nan_to_num((v + 21) / 56), RAMP_PEAK)
+    rgb = ramp_stops(np.nan_to_num((v + 21) / 56), PEAK_STOPS)
     layers["layers"]["days_to_peak"] = dict(file=save_rgba("days_to_peak", rgb, m * 0.9), title="Predicted days to peak colour",
-        legend=dict(type="ramp", colors=[[int(c * 255) for c in rc] for rc in RAMP_PEAK], labels=["past peak", "peak now", "+1 wk", "+2-3 wk", "+4 wk+"]))
+        legend=dict(type="stops", stops=[[round(p_, 3), [int(c * 255) for c in rc]] for p_, rc in PEAK_STOPS], labels=["past", "now", "+1 wk", "+2-3 wk", "+4 wk+"], positions=[0.1, 0.375, 0.5, 0.75, 1.0]))
     # stage (now)
     def stage_layer(name, st8):
-        st = warp(st8, T, C.UTM, dst_T, dst_crs, shape, Resampling.mode)
+        st = warp(st8, T, C.UTM, dst_T, dst_crs, shape, Resampling.mode); st[~region_mask] = 0
         rgb = np.zeros(shape + (3,), np.float32)
         for k_, col in STAGE_COL.items():
             rgb[st == k_] = col
@@ -95,8 +109,8 @@ def main():
         f_cs = save_rgba(f"wk_{slug}_cs", ramp(np.nan_to_num(v), RAMP_CS), m * np.clip(0.25 + 0.75 * np.nan_to_num(v), 0, 0.95))
         f_st = stage_layer(f"wk_{slug}_stage", z[f"wk|{lab}|stage"])
         rgb = np.stack([warp(z[f"wk|{lab}|rgb"][i], T, C.UTM, dst_T, dst_crs, shape, Resampling.average) for i in range(3)], axis=-1)
-        f_rgb = save_rgba(f"wk_{slug}_rgb", rgb, (rgb.max(axis=-1) > 0) * 1.0, fmt="jpg")
-        cov = float(m[veg].mean()) if veg.any() else 0
+        f_rgb = save_rgba(f"wk_{slug}_rgb", rgb, ((rgb.max(axis=-1) > 0) & region_mask) * 1.0, fmt="webp")
+        cov = float((z[f"wk|{lab}|cs"] > 0)[z["veg"]].mean()) if z["veg"].any() else 0   # on the native grid, before resampling
         weeks.append(dict(label=lab, cs=f_cs, stage=f_st, rgb=f_rgb, coverage=round(cov, 3)))
     layers["weeks"] = weeks
     json.dump(layers, open(os.path.join(out, "layers.json"), "w"), indent=1)

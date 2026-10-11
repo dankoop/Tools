@@ -338,7 +338,7 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
                cs_now=q8(cs_now, 0, 1), dhue=q8(dhue, -10, 60), dndvi=q8(dndvi, -0.6, 0.2), dpsri=q8(dpsri, -0.1, 0.4),
                velocity=q8(z["velocity_psri"] * 7, -0.05, 0.15), days_to_peak=q8(days_to_peak, -21, 35),
                decid=q8(decid, 0, 1), obs_doy=now_doy, confidence=q8(conf, 0, 1), dem=dem.astype(np.float32),
-               nobs_total=z["nobs_total"], latest_doy_max=int(now_doy.max()))
+               nobs_total=z["nobs_total"], latest_doy_max=int(now_doy.max()), sea_mask=sea, kc_mask=kc, landcover=lc)
     for lab, wk in weekly.items():
         out[f"wk|{lab}|cs"] = q8(wk["cs"], 0, 1); out[f"wk|{lab}|nobs"] = wk["nobs"]
         st = np.zeros((H, W), np.uint8); okw = veg & np.isfinite(wk["cs"])
@@ -352,7 +352,10 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
 
     # -- stats
     vv = veg & (decid > 0.25)
+    used = now_doy[veg & np.isfinite(cs_now) & (now_doy > 0)]
+    oldest = int(np.percentile(used, 2)) if used.size else int(now_doy.max())
     summary = dict(region=name, today=str(TODAY), latest_obs=str(dt.date(TODAY.year, 1, 1) + dt.timedelta(int(now_doy.max()) - 1)),
+                   now_oldest_obs=str(dt.date(TODAY.year, 1, 1) + dt.timedelta(oldest - 1)),
                    coverage_latest_week=float(np.isfinite(weekly[list(weekly)[-1]]["cs"])[veg].mean()),
                    stage_fraction={STAGE_NAMES[i]: float((stage[vv] == i).mean()) for i in range(1, 5)},
                    median_days_to_peak=float(np.nanmedian(days_to_peak[vv])),
@@ -390,6 +393,8 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
     park_cell = block(parks.astype(np.float32), lambda a: a.mean(axis=(1, 3)))
     sea_cell = block(sea.astype(np.float32), lambda a: a.mean(axis=(1, 3)))
     built = block((lc == 50).astype(np.float32), lambda a: a.mean(axis=(1, 3)))
+    canopy_cell = block(np.where(vv > 0, (lc == 10).astype(np.float32), 0), lambda a: a.sum(axis=(1, 3))) / np.maximum(nveg, 1)
+    leafoff_cell = block(np.where(vv > 0, (stage == 4).astype(np.float32), 0), lambda a: a.sum(axis=(1, 3))) / np.maximum(nveg, 1)
     near_built = ndimage.maximum_filter(built, size=int(1500 / cell_m) * 2 + 1) > 0.15
     thr = max(0.22, float(np.nanpercentile(score[frac > 0.2], 90)))
     hot = (score >= thr) & (frac >= 0.2)
@@ -402,7 +407,9 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
     places = json.load(open(os.path.join(os.path.dirname(__file__), "data", "places.json")))
     nh_names = list(anc["nhood_names"]); nh_id = anc["nhood_id"]
     nh_cell = block(nh_id, lambda a: a[:, 0, :, 0])
-    place_pts = [(p["name"], Point(*Transformer.from_crs(4326, C.UTM, always_xy=True).transform(p["lon"], p["lat"]))) for p in places["places"] + places["destinations"]]
+    _tr = Transformer.from_crs(4326, C.UTM, always_xy=True)
+    place_pts = [(p["name"], Point(*_tr.transform(p["lon"], p["lat"]))) for p in places["places"]]
+    dest_pts = [(p["name"], Point(*_tr.transform(p["lon"], p["lat"]))) for p in places["destinations"]]
     feats = []
     min_cells = 4 if name == "seattle" else 3
     for i in range(1, n + 1):
@@ -411,7 +418,7 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
         if nc < min_cells:
             continue
         geoms = [shape(g) for g, v in features.shapes(m.astype(np.uint8), mask=m, transform=cell_T)]
-        poly = unary_union(geoms).simplify(cell_m * 0.6)
+        poly = unary_union(geoms).buffer(cell_m * 0.7, join_style=1).buffer(-cell_m * 0.45, join_style=1).simplify(cell_m * 0.25)
         cen = poly.centroid
         area_ha = nc * cell_m * cell_m / 1e4
         intensity = float(np.average(cs_cell[m], weights=nveg[m]))
@@ -420,10 +427,18 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
         elev = float(dem_cell[m].mean()); parkf = float(park_cell[m].mean()); seaf = float(sea_cell[m].mean())
         access = max(parkf, 0.6 * float(near_built[m].mean()))
         ids = nh_cell[m]; ids = ids[ids > 0]
-        if ids.size and seaf > 0.3:
-            nh = str(nh_names[int(np.bincount(ids).argmax()) - 1]); label = nh
+        ddist, dname = min((poly.distance(pt), nm) for nm, pt in dest_pts)
+        canopy = float(np.average(canopy_cell[m], weights=nveg[m])); leafoff = float(np.average(leafoff_cell[m], weights=nveg[m]))
+        if ddist <= 600:
+            label = dname
+        elif ids.size and seaf > 0.3:
+            label = str(nh_names[int(np.bincount(ids).argmax()) - 1])
         else:
-            dists = [(cen.distance(pt), nm) for nm, pt in place_pts]; dmin, nm = min(dists); label = f"near {nm}" if dmin > 1500 else nm
+            dmin, nm = min((cen.distance(pt), nm) for nm, pt in place_pts); label = f"near {nm}" if dmin > 1500 else nm
+        if peakf >= 0.35:
+            d2p = min(d2p, 0.0)          # stage says peak: timing cannot still be ahead
+        if leafoff >= 0.3:
+            d2p = min(d2p, -14.0)
         timing = 1.0 if abs(d2p) <= 7 else max(0.0, 1 - (abs(d2p) - 7) / 14) if d2p > 0 else max(0.1, 1 - (abs(d2p) - 7) / 10)
         visit = 100 * (0.45 * min(intensity / 0.6, 1) + 0.2 * timing + 0.2 * access + 0.15 * min(math.log1p(area_ha) / math.log1p(400), 1))
         series = {wl: float(np.nanmean(np.where(vv[:Hc * k, :Wc * k] > 0, weekly[wl]["cs"][:Hc * k, :Wc * k], np.nan)[np.kron(m, np.ones((k, k), bool))])) for wl in weekly}
@@ -432,6 +447,7 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
             label=label, area_ha=round(area_ha, 1), intensity=round(intensity, 3), peak_fraction=round(peakf, 3),
             days_to_peak=round(d2p, 1), velocity_wk=round(velo, 3), elev_m=round(elev), park_fraction=round(parkf, 2),
             in_seattle=seaf > 0.5, access=round(access, 2), visit_score=round(visit, 1), region=name,
+            canopy_fraction=round(canopy, 2), kind="canopy" if canopy >= 0.6 else "meadow / shrub", leafoff_fraction=round(leafoff, 3),
             series={k_: (None if np.isnan(v) else round(v, 3)) for k_, v in series.items()},
             lon=round(float(poly_ll.centroid.x), 5), lat=round(float(poly_ll.centroid.y), 5))))
     feats.sort(key=lambda f: -f["properties"]["visit_score"])
@@ -459,6 +475,9 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
                 continue
             csm = cs_now[r0:r1, c0:c1][m]; stm = stage[r0:r1, c0:c1][m]; dm = dtp[r0:r1, c0:c1][m]
             intensity = float(np.nanmean(csm)); d2p = float(np.nanmean(dm)) if np.isfinite(dm).any() else float("nan")
+            pf = float((stm == 3).mean()); lf = float((stm == 4).mean())
+            if pf >= 0.35: d2p = min(d2p, 0.0)
+            if lf >= 0.3: d2p = min(d2p, -14.0)
             series = {wl: float(np.nanmean(weekly[wl]["cs"][r0:r1, c0:c1][m])) for wl in weekly}
             timing = 1.0 if abs(d2p) <= 7 else max(0.0, 1 - (abs(d2p) - 7) / 14) if d2p > 0 else max(0.1, 1 - (abs(d2p) - 7) / 10)
             visit = 100 * (0.5 * min(intensity / 0.6, 1) + 0.25 * timing + 0.25)
@@ -466,6 +485,7 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
                 name=d["name"], kind=d["kind"], notes=d["notes"], radius_m=d["radius_m"], n_veg_px=int(m.sum()),
                 intensity=round(intensity, 3), stage_fraction={STAGE_NAMES[i]: round(float((stm == i).mean()), 3) for i in range(1, 5)},
                 days_to_peak=None if np.isnan(d2p) else round(d2p, 1), elev_m=round(float(np.nanmean(dem[r0:r1, c0:c1][m]))),
+                peak_fraction=round(pf, 3), leafoff_fraction=round(lf, 3), canopy_fraction=round(float((lc[r0:r1, c0:c1][m] == 10).mean()), 2),
                 visit_score=round(visit, 1), region=name,
                 series={k_: (None if np.isnan(v) else round(v, 3)) for k_, v in series.items()})))
         json.dump(dict(type="FeatureCollection", features=dest), open(os.path.join(outdir, f"destinations_{name}.geojson"), "w"))
