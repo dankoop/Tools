@@ -1,0 +1,7 @@
+# Large cached rasters / downloads live outside the repo (see pipeline/config.py: FALLCOLOR_CACHE)
+cache/
+__pycache__/
+*.pyc
+*.npz
+*.grib2
+*.tif

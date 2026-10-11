@@ -1,0 +1,7 @@
+numpy>=2.0
+rasterio>=1.4
+pyproj>=3.6
+shapely>=2.0
+scipy>=1.13
+scikit-learn>=1.5
+pillow>=10
