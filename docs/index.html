@@ -114,7 +114,7 @@ details summary{cursor:pointer;font-weight:600;margin:6px 0}
 .rep{width:13px;height:13px;border-radius:2px;background:#e8e6e0;border:2px solid #1b1a18;transform:rotate(45deg)}
 .plabel{color:#f1efe9;font:600 12px/1 var(--body);text-shadow:0 0 3px #000,0 0 6px #000,0 1px 2px #000;white-space:nowrap;letter-spacing:.02em;pointer-events:none}
 .plabel.water{color:#b9c6cf;font-weight:400;font-style:italic}
-.base-grey img{filter:grayscale(1) brightness(.95)}
+.base-grey{filter:grayscale(1) brightness(.95)}
 .leaflet-control-attribution{background:rgba(0,0,0,.45)!important;color:#ccc!important;font-size:10px}
 .leaflet-control-attribution a{color:#ddd!important}
 .spark{display:block}
@@ -808,12 +808,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="row">
       <label><input type="checkbox" id="chk-clusters" checked> Hotspots</label>
       <label><input type="checkbox" id="chk-dest" checked> Places</label>
+      <label><input type="checkbox" id="chk-roads" checked> Roads</label>
+      <label><input type="checkbox" id="chk-water" checked> Water</label>
       <label><input type="checkbox" id="chk-labels" checked> Labels</label>
       <label><input type="checkbox" id="chk-stations"> Weather stations</label>
       <label><input type="checkbox" id="chk-reports"> Reports</label>
     </div>
     <div class="row">
-      <label>Base <select id="sel-base" aria-label="Base map"><option value="grey">Imagery, greyscale</option><option value="rgb">Imagery, colour</option><option value="osm">Street map (needs internet tiles)</option><option value="none">Plain dark</option></select></label>
+      <label>Base <select id="sel-base" aria-label="Base map"><option value="grey">Sentinel-2 10 m, greyscale</option><option value="rgb">Sentinel-2 10 m, colour</option><option value="esri-grey">Esri World Imagery, greyscale (internet)</option><option value="esri">Esri World Imagery, colour (internet)</option><option value="osm">Street map (internet)</option><option value="none">Plain dark</option></select></label>
     </div>
     <label><input type="range" id="opacity" min="20" max="100" value="85" aria-label="Overlay opacity" style="accent-color:var(--ink)"> overlay opacity</label>
   </div>
@@ -883,15 +885,16 @@ function stackBar(sf){const keys=[['green','c1'],['turning','c2'],['peak','c3'],
 // ---------------------------------------------------------------- map
 const map=L.map('map',{zoomControl:false,attributionControl:true,minZoom:8,maxZoom:16,zoomSnap:0.25,zoomDelta:0.5});
 L.control.zoom({position:'topright'}).addTo(map);
-map.attributionControl.setPrefix('').addAttribution('Copernicus Sentinel-2 via AWS · ESA WorldCover · NOAA GHCN, HRRR, GFS');
+map.attributionControl.setPrefix('').addAttribution('Copernicus Sentinel-2 via AWS · ESA WorldCover · NOAA GHCN, HRRR, GFS · roads & water © Overture Maps / OpenStreetMap contributors');
 const countyB=site.regions.county?site.regions.county.bounds:site.regions.seattle.bounds;
 map.fitBounds((hasCounty&&desktop())?countyB:(site.regions.seattle||site.regions.county).bounds,{padding:[10,10]});
-['basepane','countypane','seattlepane','vecpane','labelpane'].forEach((n,i)=>{map.createPane(n).style.zIndex=200+i*60});
+['basepane','ctxpane','countypane','seattlepane','vecpane','labelpane'].forEach((n,i)=>{map.createPane(n).style.zIndex=200+i*50});
 map.getPane('labelpane').style.pointerEvents='none';
-let osm=null; const baseImg={}, overlays={};
+let tileBase=null; const overlays={};
 const imgUrl=(r,f)=>`data/${r}/${f}`;
+const baseTiles=L.layerGroup();   // sharp 10 m Sentinel-2 composite, cut into <=2048 px pieces
+for(const t of ((site.base||{}).tiles||[])) baseTiles.addLayer(L.imageOverlay(`data/base/${t.file}`,t.bounds,{pane:'basepane',interactive:false,className:'base-grey'}));
 for(const r of regions){
-  baseImg[r]=L.imageOverlay('',site.regions[r].bounds,{pane:'basepane',opacity:1,interactive:false,className:'base-grey'}).addTo(map);
   overlays[r]=L.imageOverlay('',site.regions[r].bounds,{pane:r+'pane',opacity:.85,interactive:false}).addTo(map);
 }
 L.geoJSON(bounds,{pane:'vecpane',style:f=>({color:'#e8e6e0',weight:f.properties.name==='Seattle'?1.4:1,fill:false,opacity:.7,dashArray:f.properties.name==='Seattle'?null:'4 4'}),interactive:false}).addTo(map);
@@ -905,7 +908,7 @@ let layer=store.get('layer')||'cs', week=weeks.length; if(!LAYERS.some(l=>l[0]==
 function layerFile(region,k,w){
   const R=site.regions[region]; if(!R) return null;
   if(['cs','stage','rgb'].includes(k)){
-    if(k==='rgb') return null;                                     // imagery only: the base shows it
+    if(k==='rgb') return R.weeks[Math.min(w,weeks.length-1)].rgb;   // that week's cloud-free imagery, over the sharp base
     if(w>=weeks.length) return k==='cs'?R.layers.cs_now.file:R.layers.stage.file;
     return R.weeks[w][k];
   }
@@ -923,12 +926,10 @@ function legendFor(k){
   el.innerHTML=h;
 }
 function applyLayer(){
-  const weekly=['cs','stage'].includes(layer);
+  const weekly=['cs','stage','rgb'].includes(layer);
   document.querySelectorAll('.step').forEach(b=>b.disabled=!weekly);
   for(const r of regions){
-    const f=layerFile(r,layer,week); overlays[r].setUrl(f?imgUrl(r,f):''); overlays[r].setOpacity(f?($('#opacity').value/100):0);
-    const wk=weekly&&week<weeks.length?site.regions[r].weeks[week].rgb:site.regions[r].weeks[weeks.length-1].rgb;
-    if(baseMode!=='osm'&&baseMode!=='none') baseImg[r].setUrl(imgUrl(r,wk));
+    const f=layerFile(r,layer,week); overlays[r].setUrl(f?imgUrl(r,f):''); overlays[r].setOpacity(f?(layer==='rgb'?1:$('#opacity').value/100):0);
   }
   $('#layer-name').textContent=LAYERS.find(l=>l[0]===layer)[1];
   legendFor(layer); renderProv(); store.set('layer',layer);
@@ -950,15 +951,16 @@ let baseMode=store.get('base')||'grey';
 $('#sel-base').value=baseMode;
 function applyBase(){
   baseMode=$('#sel-base').value; store.set('base',baseMode);
-  if(osm){map.removeLayer(osm);osm=null}
-  for(const r of regions){
-    const show=baseMode==='grey'||baseMode==='rgb';
-    baseImg[r].setOpacity(show?1:0);
-    const el=baseImg[r].getElement(); if(el) el.style.filter=baseMode==='grey'?'grayscale(1) brightness(.95)':'none';
-    baseImg[r].options.className=baseMode==='grey'?'base-grey':'';
+  if(tileBase){map.removeLayer(tileBase);tileBase=null}
+  const s2=baseMode==='grey'||baseMode==='rgb';
+  if(s2){ baseTiles.addTo(map); baseTiles.eachLayer(l=>{const el=l.getElement(); if(el) el.classList.toggle('base-grey',baseMode==='grey')}); }
+  else map.removeLayer(baseTiles);
+  if(baseMode==='osm'||baseMode.startsWith('esri')){
+    const esri=baseMode.startsWith('esri');
+    tileBase=L.tileLayer(esri?'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}':'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {pane:'basepane',maxZoom:19,className:baseMode==='esri-grey'?'base-grey':'',attribution:esri?'Esri, Maxar, Earthstar Geographics, and the GIS User Community':'© OpenStreetMap contributors'}).addTo(map);
+    tileBase.once('tileerror',()=>{ $('#prov').insertAdjacentHTML('beforeend','<span>Internet tiles are blocked in this viewer; use the GitHub Pages copy for Esri or street bases.</span>')});
   }
-  if(baseMode==='osm'){osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{pane:'basepane',attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(map);
-    osm.once('tileerror',()=>{ $('#legend').insertAdjacentHTML('beforeend','<div class="muted">Street tiles are blocked in this viewer; use the GitHub Pages copy for a street base.</div>')})}
   applyLayer();
 }
 sel.onchange=()=>{layer=sel.value;applyLayer()}; $('#opacity').oninput=applyLayer; $('#sel-base').onchange=applyBase;
@@ -971,21 +973,38 @@ const hotLayer=L.geoJSON(hotspots,{pane:'vecpane',style:{color:'#ffffff',weight:
 const hotIndex=new Map(); hotLayer.eachLayer(l=>hotIndex.set(l.feature.properties.rank,l));
 const badges=L.layerGroup();
 const badgeMarkers=hotspots.features.map(f=>{const p=f.properties;return {rank:p.rank,m:L.marker([p.lat,p.lon],{pane:'labelpane',icon:L.divIcon({className:'',html:`<div class="rank-badge">${p.rank}</div>`,iconSize:[22,22],iconAnchor:[11,11]}),interactive:false})}});
-function updateBadges(){const z=map.getZoom();const n=z<10?8:z<12?20:999;badges.clearLayers();badgeMarkers.filter(b=>b.rank<=n).forEach(b=>badges.addLayer(b.m))}
+function updateBadges(){const z=map.getZoom();const n=z<10?8:z<12?20:40;badges.clearLayers();badgeMarkers.filter(b=>b.rank<=n).forEach(b=>badges.addLayer(b.m))}
 const destLayer=L.layerGroup(); const destMarkers=[];
 for(const f of dests.features){const p=f.properties;const m=L.circleMarker([f.geometry.coordinates[1],f.geometry.coordinates[0]],{pane:'vecpane',radius:5+Math.round(p.visit_score/25),color:rampColor(p.intensity),weight:2.5,fillColor:'#1b1a18',fillOpacity:.55}).bindPopup(()=>destPopup(p));m._p=p;destMarkers.push(m);m.addTo(destLayer)}
 const labelLayer=L.layerGroup();
-const WATER=[['Puget Sound',-122.47,47.56],['Lake Washington',-122.25,47.62],['Lake Sammamish',-122.08,47.59],['Elliott Bay',-122.37,47.60]];
+const WATER=[['Puget Sound',-122.47,47.56]];
 const MAJOR=new Set(['Bellevue','Kirkland','Redmond','Issaquah','Renton','Kent','Auburn','Federal Way','North Bend','Snoqualmie Pass','Enumclaw','Vashon','Woodinville','Carnation','Skykomish','Maple Valley']);
 for(const p of places.places){const m=L.marker([p.lat,p.lon],{pane:'labelpane',icon:L.divIcon({className:'',html:`<div class="plabel" data-tier="${MAJOR.has(p.name)?'major':'minor'}">${p.name}</div>`,iconSize:[0,0],iconAnchor:[-4,6]}),interactive:false});labelLayer.addLayer(m)}
 for(const [n,lon,lat] of WATER) labelLayer.addLayer(L.marker([lat,lon],{pane:'labelpane',icon:L.divIcon({className:'',html:`<div class="plabel water">${n}</div>`,iconSize:[0,0],iconAnchor:[30,6]}),interactive:false}));
+// orientation context from Overture Maps: water polygons always available, roads lazy-loaded
+const canvas=L.canvas({pane:'ctxpane',padding:.3});   // roads and water sit UNDER the data overlays
+const waterLayer=L.layerGroup(), roadsMajor=L.layerGroup(), roadsMinor=L.layerGroup(); let roadsLoaded=false, minorLoaded=false;
+const ctxFiles=new Set(site.context||[]);
+function roadStyle(c,z){const big=c==='mot'||c==='tru';const w=big?(z>=13?2.2:z>=11?1.6:1.1):c==='pri'?(z>=13?1.4:0.9):c==='sec'?(z>=13?1:0.6):c==='ter'?0.7:0.6;const col=big?'#f4f1ea':c==='pri'?'#d9d4ca':c==='sec'?'#b9b3a8':c==='ter'?'#9c968c':'#857f75';return {color:col,weight:w,opacity:big?0.9:0.8,lineCap:'round'}}
+async function loadWater(){ if(!ctxFiles.has('water.geojson')) return; const w=await fetch('data/context/water.geojson').then(r=>r.json()).catch(()=>null); if(!w) return;
+  L.geoJSON(w,{pane:'ctxpane',renderer:canvas,interactive:false,style:{color:'#8fa6b5',weight:.7,opacity:.8,fillColor:'#0b1620',fillOpacity:.55}}).addTo(waterLayer);
+  for(const f of w.features){ if(f.properties.n){ const c=L.geoJSON(f).getBounds().getCenter(); labelLayer.addLayer(L.marker(c,{pane:'labelpane',icon:L.divIcon({className:'',html:`<div class="plabel water" data-tier="minor">${f.properties.n}</div>`,iconSize:[0,0],iconAnchor:[30,6]}),interactive:false})) } } updateLabels(); }
+async function loadRoads(){ if(roadsLoaded||!ctxFiles.has('roads_major.geojson')) return; roadsLoaded=true; const g=await fetch('data/context/roads_major.geojson').then(r=>r.json()).catch(()=>null); if(!g) return;
+  L.geoJSON(g,{pane:'ctxpane',renderer:canvas,interactive:false,style:f=>roadStyle(f.properties.c,map.getZoom())}).addTo(roadsMajor); restyleRoads(); }
+async function loadMinor(){ if(minorLoaded||!ctxFiles.has('roads_minor.geojson')) return; minorLoaded=true; const g=await fetch('data/context/roads_minor.geojson').then(r=>r.json()).catch(()=>null); if(!g) return;
+  L.geoJSON(g,{pane:'ctxpane',renderer:canvas,interactive:false,style:f=>roadStyle(f.properties.c,map.getZoom())}).addTo(roadsMinor); restyleRoads(); }
+function restyleRoads(){ const z=map.getZoom(); [roadsMajor,roadsMinor].forEach(gr=>gr.eachLayer(g=>g.eachLayer(l=>{const c=l.feature.properties.c; const hide=(c==='sec'&&z<10.5)||(c==='ter'&&z<12)||((c==='res'||c==='unc'||c==='liv')&&z<13.5); l.setStyle({...roadStyle(c,z),opacity:hide?0:roadStyle(c,z).opacity})}))) }
+function syncRoads(){ const on=$('#chk-roads').checked; if(!on){map.removeLayer(roadsMajor);map.removeLayer(roadsMinor);return} loadRoads(); roadsMajor.addTo(map); if(map.getZoom()>=13){loadMinor(); roadsMinor.addTo(map)} else map.removeLayer(roadsMinor); restyleRoads(); }
+waterLayer.addTo(map); loadWater();
 const stationLayer=L.layerGroup(), reportLayer=L.layerGroup();
 for(const f of stations.features){const p=f.properties;L.marker([f.geometry.coordinates[1],f.geometry.coordinates[0]],{pane:'vecpane',icon:L.divIcon({className:'',html:'<div class="stn"></div>',iconSize:[12,11],iconAnchor:[6,6]})}).bindPopup(()=>stationPopup(p)).addTo(stationLayer)}
 const reportMarkers=[];
 for(const f of reports.features){const p=f.properties;const m=L.marker([f.geometry.coordinates[1],f.geometry.coordinates[0]],{pane:'vecpane',icon:L.divIcon({className:'',html:'<div class="rep"></div>',iconSize:[13,13],iconAnchor:[7,7]})}).bindPopup(()=>reportPopup(p));m._p=p;reportMarkers.push(m);m.addTo(reportLayer)}
 haloLayer.addTo(map); hotLayer.addTo(map); badges.addTo(map); destLayer.addTo(map); labelLayer.addTo(map);
 function updateLabels(){const z=map.getZoom(); labelLayer.eachLayer(l=>{const el=l.getElement(); if(!el) return; const d=el.querySelector('.plabel'); const tier=d.dataset.tier; el.style.display=(d.classList.contains('water')||z>=11.5||(tier==='major'&&z>=9))?'':'none'})}
-map.on('zoomend',()=>{updateBadges();updateLabels()}); updateBadges(); setTimeout(updateLabels,0);
+map.on('zoomend',()=>{updateBadges();updateLabels();syncRoads()}); updateBadges(); setTimeout(updateLabels,0); syncRoads();
+$('#chk-roads').onchange=syncRoads;
+$('#chk-water').onchange=e=>e.target.checked?waterLayer.addTo(map):map.removeLayer(waterLayer);
 $('#chk-clusters').onchange=e=>{[haloLayer,hotLayer,badges].forEach(l=>e.target.checked?l.addTo(map):map.removeLayer(l))};
 $('#chk-dest').onchange=e=>e.target.checked?destLayer.addTo(map):map.removeLayer(destLayer);
 $('#chk-labels').onchange=e=>e.target.checked?labelLayer.addTo(map):map.removeLayer(labelLayer);
@@ -1057,6 +1076,7 @@ function render(){
     <p><b>Phenology.</b> Autumn 2023, 2024 and 2025 were processed the same way at 80 m. Each pixel gets a typical colour curve, peak week and autumn amplitude; small amplitude means evergreen. This year's progress is matched to that curve to estimate how many days ahead of or behind a normal year the spot is, which gives the predicted peak date, pulled earlier when cold nights are forecast and more so at elevation.</p>
     <p><b>Weather.</b> Nightly lows and cold-night counts come from NOAA GHCN stations (airports, SNOTEL) compared with the same dates in prior years, HRRR 3 km analyses fill the days after the station feed, and the 7-day outlook is the latest GFS run. Cold nights accelerate colour; strong wind or heavy rain after peak ends the show.</p>
     <p><b>Hotspots and scores.</b> Tree pixels are aggregated to 100 m cells in Seattle and 200 m cells elsewhere; the top tenth by colour score are grouped into contiguous hotspots and labelled by the nearest destination, neighbourhood or town. “Canopy” hotspots are mostly tree cover; “meadow / shrub” ones are huckleberry and mountain-ash slopes. The worth-a-visit score weights colour intensity 45%, timing against the predicted peak 20%, public access 20% and size 15%; it ranks places, it is not a measurement.</p>
+    <p><b>Orientation.</b> The base is a 10 m Sentinel-2 true-colour composite of the clearest recent passes (latest clear pixel wins), sharpened and shown in greyscale so colour on the map is always data. Roads and water outlines come from Overture Maps; major roads show county-wide and residential streets appear inside Seattle from zoom 13. Esri World Imagery and OpenStreetMap bases are offered for the GitHub Pages copy, where outside tiles can load.</p>
     <p><b>Colour on this page.</b> The green–yellow–orange–red scale is used only to show colour state, on the map, in the stage pills and at the end of each sparkline. Timing and diagnostic layers use greys and teals so that orange never means anything but fall colour. The imagery base is greyscale by default for the same reason.</p>
     <p><b>Limits.</b> A 10 m pixel mixes several trees; street trees under cloud for two weeks show their last clear state; the phenology baseline is coarse, so timing is a guide. Reports are quoted from and linked to their sources.</p>
     <p class="muted">Generated ${site.generated}. Pipeline code: the <code>pipeline/</code> folder of this repository.</p></div>`;

@@ -84,6 +84,20 @@ def main(outdir, docs):
     dump(dict(type="FeatureCollection", features=st_feats), os.path.join(data, "stations.geojson"))
     dump(dict(gfs=w["gfs"], gfs_cycle=w["gfs_cycle"], points=w["points"], hrrr=w["hrrr"]), os.path.join(data, "weather.json"))
     shutil.copy(os.path.join(os.path.dirname(__file__), "data", "places.json"), os.path.join(data, "places.json"))
+    # sharp 10 m base tiles and Overture context (roads, water)
+    bsrc = os.path.join(outdir, "base")
+    if os.path.exists(os.path.join(bsrc, "base.json")):
+        bdst = os.path.join(data, "base"); os.makedirs(bdst, exist_ok=True)
+        for f in os.listdir(bsrc):
+            shutil.copy(os.path.join(bsrc, f), bdst)
+        site["base"] = json.load(open(os.path.join(bsrc, "base.json")))
+    csrc = os.path.join(C.SCRATCH, "context")
+    if os.path.exists(csrc):
+        cdst = os.path.join(data, "context"); os.makedirs(cdst, exist_ok=True)
+        for f in ("roads_major.geojson", "roads_minor.geojson", "water.geojson"):
+            if os.path.exists(os.path.join(csrc, f)):
+                shutil.copy(os.path.join(csrc, f), cdst)
+        site["context"] = sorted(os.listdir(cdst))
     # reports
     rep = json.load(open(os.path.join(os.path.dirname(__file__), "data", "reports.json")))
     feats = [dict(type="Feature", geometry=dict(type="Point", coordinates=[r["lon"], r["lat"]]), properties={k: v for k, v in r.items() if k not in ("lon", "lat")}) for r in rep["reports"]]
