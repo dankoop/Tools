@@ -86,12 +86,16 @@ def main():
     continuous("velocity", "velocity", -0.05, 0.15, RAMP_TEAL, "Change velocity (senescence index per week)", ["steady", "slow", "fast", "very fast"])
     continuous("decid", "decid", 0, 1, RAMP_TEAL[:3], "Deciduous likelihood", ["evergreen", "mixed", "deciduous"])
     continuous("confidence", "confidence", 0, 1, RAMP_GREY, "Prediction confidence", ["low", "high"])
-    # days to peak: grey = past, dark teal = now, lighter = later; only where deciduous
-    a8 = warp(z["days_to_peak"], T, C.UTM, dst_T, dst_crs, shape, Resampling.average); v = q(a8, -21, 35)
-    m = np.isfinite(v) & veg
-    rgb = ramp_stops(np.nan_to_num((v + 21) / 56), PEAK_STOPS)
-    layers["layers"]["days_to_peak"] = dict(file=save_rgba("days_to_peak", rgb, m * 0.9), title="Predicted days to peak colour",
-        legend=dict(type="stops", stops=[[round(p_, 3), [int(c * 255) for c in rc]] for p_, rc in PEAK_STOPS], labels=["past", "now", "+1 wk", "+2-3 wk", "+4 wk+"], positions=[0.1, 0.375, 0.5, 0.75, 1.0]))
+    # peak timing classes, chronological: past (leaf-off brown) | now (darkest teal) | next 2 wk | 2-4 wk | later (lightest)
+    TIMING_COL = {1: (120, 85, 60), 2: (8, 51, 66), 3: (38, 115, 130), 4: (112, 181, 194), 5: (205, 226, 230)}
+    tm = warp(z["timing"], T, C.UTM, dst_T, dst_crs, shape, Resampling.mode); tm[~region_mask] = 0
+    rgb = np.zeros(shape + (3,), np.float32)
+    for k_, col in TIMING_COL.items():
+        rgb[tm == k_] = col
+    layers["layers"]["timing"] = dict(file=save_rgba("timing", rgb, (tm > 0) * 0.88), title="Predicted peak timing",
+        legend=dict(type="classes", items=[["past peak", TIMING_COL[1]], ["peak now", TIMING_COL[2]], ["next 2 weeks", TIMING_COL[3]], ["2-4 weeks", TIMING_COL[4]], ["later", TIMING_COL[5]]]))
+    conf = q(warp(z["confidence"], T, C.UTM, dst_T, dst_crs, shape, Resampling.average), 0, 1); conf = np.nan_to_num(conf, nan=0.3)
+    confw = 0.45 + 0.55 * np.clip(conf, 0, 1)                   # forecast layers fade where the prediction is weak
     # stage (now)
     def stage_layer(name, st8):
         st = warp(st8, T, C.UTM, dst_T, dst_crs, shape, Resampling.mode); st[~region_mask] = 0
@@ -113,6 +117,18 @@ def main():
         cov = float((z[f"wk|{lab}|cs"] > 0)[z["veg"]].mean()) if z["veg"].any() else 0   # on the native grid, before resampling
         weeks.append(dict(label=lab, cs=f_cs, stage=f_st, rgb=f_rgb, coverage=round(cov, 3)))
     layers["weeks"] = weeks
+    fcs = []
+    for rec in z["fc_bins"]:
+        lab, a0, a1 = str(rec).split("|"); slug = lab.replace(" ", "_").replace("-", "_")
+        cs8 = warp(z[f"fc|{lab}|cs"], T, C.UTM, dst_T, dst_crs, shape, Resampling.average); v = q(cs8, 0, 1); m = np.isfinite(v) & veg
+        f_cs = save_rgba(f"fc_{slug}_cs", ramp(np.nan_to_num(v), RAMP_CS), m * np.clip(0.25 + 0.75 * np.nan_to_num(v), 0, 0.95) * confw)
+        st = warp(z[f"fc|{lab}|stage"], T, C.UTM, dst_T, dst_crs, shape, Resampling.mode); st[~region_mask] = 0
+        rgb = np.zeros(shape + (3,), np.float32)
+        for k_, col in STAGE_COL.items():
+            rgb[st == k_] = col
+        f_st = save_rgba(f"fc_{slug}_stage", rgb, (st > 0) * 0.85 * confw)
+        fcs.append(dict(label=lab, start=a0, end=a1, cs=f_cs, stage=f_st))
+    layers["forecast"] = fcs
     json.dump(layers, open(os.path.join(out, "layers.json"), "w"), indent=1)
     print(a.region, "rendered", dw, "x", dh, "->", out, [f"{k}: {os.path.getsize(os.path.join(out, v['file'])) // 1024} KB" for k, v in layers["layers"].items()][:4])
 

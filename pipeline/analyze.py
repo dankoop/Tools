@@ -331,6 +331,43 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
     gust = max((d["gust_max_ms"] or 0) for d in gfs[:7]); rain = max(d["precip_mm"] for d in gfs[:7])
     leafdrop_risk = "high" if gust >= 18 or rain >= 25 else "moderate" if gust >= 12 or rain >= 12 else "low"
 
+    # -- forecast weeks: predicted colour score / stage from the climatological curve shifted by this pixel's offset
+    last_bin_end = dt.date(TODAY.year, int(z["bin_ranges"][-1].split("|")[1][:2]), int(z["bin_ranges"][-1].split("|")[1][3:]))
+    fc_weeks = []
+    start = last_bin_end + dt.timedelta(days=1)
+    for i in range(4):
+        end = start + dt.timedelta(days=6)
+        lab = f"{start.strftime('%b')} {start.day}-{end.day}" if start.month == end.month else f"{start.strftime('%b %-d')}-{end.strftime('%b %-d')}"
+        fc_weeks.append((lab, start, end)); start = end + dt.timedelta(days=1)
+    amp_eff = np.maximum(amp, np.nan_to_num(cs_now, nan=0.0))
+    cold_shift = np.clip(0.5 * cold_px, 0, 4)                 # forecast cold nights pull the curve earlier
+    forecast = {}
+    for lab, a0, a1 in fc_weeks:
+        mid_doy = (a0 + dt.timedelta(days=3)).timetuple().tm_yday
+        clim_doy = mid_doy + offset + cold_shift
+        fi = np.clip((clim_doy - doys[0]) / 7.0, 0, Tb - 1.001)
+        i0 = fi.astype(int); w = (fi - i0).astype(np.float32)
+        v0 = np.take_along_axis(cur, i0[None], axis=0)[0]; v1 = np.take_along_axis(cur, np.minimum(i0 + 1, Tb - 1)[None], axis=0)[0]
+        cs_pred = np.clip((v0 * (1 - w) + v1 * w) * amp_eff, 0, 1).astype(np.float32)
+        # colour does not retreat before its predicted peak: never forecast less colour than is already observed
+        before_peak = clim_doy <= peak_doy + 3
+        cs_pred = np.where(before_peak, np.maximum(cs_pred, np.nan_to_num(cs_now, nan=0.0)), cs_pred).astype(np.float32)
+        st_pred = np.zeros((H, W), np.uint8)
+        okp = veg & np.isfinite(cs_now)
+        st_pred[okp] = 1
+        st_pred[okp & (cs_pred >= 0.15) & (decid >= 0.25)] = 2
+        st_pred[okp & (cs_pred >= 0.45) & (decid >= 0.25)] = 3
+        past = okp & (decid >= 0.25) & ((clim_doy > peak_doy + 12) | (stage == 4))
+        st_pred[past] = 4
+        forecast[lab] = dict(cs=np.where(okp, cs_pred, np.nan).astype(np.float32), stage=st_pred, start=str(a0), end=str(a1))
+    # -- timing classes (chronological, read left to right): 1 past, 2 now, 3 next 2 wk, 4 2-4 wk, 5 later
+    timing = np.zeros((H, W), np.uint8)
+    tv = veg & (decid >= 0.25) & np.isfinite(days_to_peak)
+    d = np.nan_to_num(days_to_peak, nan=99)
+    timing[tv & (d < -5)] = 1; timing[tv & (d >= -5) & (d <= 4)] = 2; timing[tv & (d > 4) & (d <= 18)] = 3
+    timing[tv & (d > 18) & (d <= 32)] = 4; timing[tv & (d > 32)] = 5
+    timing[veg & (stage == 4)] = 1
+
     # -- save rasters
     def q8(a, lo, hi):
         return np.where(np.isfinite(a), np.clip((a - lo) / (hi - lo) * 254 + 1, 1, 255), 0).astype(np.uint8)
@@ -339,6 +376,10 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
                velocity=q8(z["velocity_psri"] * 7, -0.05, 0.15), days_to_peak=q8(days_to_peak, -21, 35),
                decid=q8(decid, 0, 1), obs_doy=now_doy, confidence=q8(conf, 0, 1), dem=dem.astype(np.float32),
                nobs_total=z["nobs_total"], latest_doy_max=int(now_doy.max()), sea_mask=sea, kc_mask=kc, landcover=lc)
+    out["timing"] = timing
+    out["fc_bins"] = np.array([f"{lab}|{v['start']}|{v['end']}" for lab, v in forecast.items()])
+    for lab, v in forecast.items():
+        out[f"fc|{lab}|cs"] = q8(v["cs"], 0, 1); out[f"fc|{lab}|stage"] = v["stage"]
     for lab, wk in weekly.items():
         out[f"wk|{lab}|cs"] = q8(wk["cs"], 0, 1); out[f"wk|{lab}|nobs"] = wk["nobs"]
         st = np.zeros((H, W), np.uint8); okw = veg & np.isfinite(wk["cs"])
@@ -361,14 +402,18 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
                    median_days_to_peak=float(np.nanmedian(days_to_peak[vv])),
                    forecast_cold_nights=cold, forecast_max_gust_ms=gust, forecast_max_rain_mm=rain, leafdrop_risk=leafdrop_risk,
                    weekly_mean_cs={lab: float(np.nanmean(wk["cs"][vv])) for lab, wk in weekly.items()},
-                   weekly_stage_fraction={lab: {STAGE_NAMES[i]: float((out[f'wk|{lab}|stage'][vv] == i).mean()) for i in range(1, 5)} for lab in weekly})
+                   weekly_stage_fraction={lab: {STAGE_NAMES[i]: float((out[f'wk|{lab}|stage'][vv] == i).mean()) for i in range(1, 5)} for lab in weekly},
+                   forecast_weeks=[dict(label=lab, start=v["start"], end=v["end"]) for lab, v in forecast.items()],
+                   forecast_stage_fraction={lab: {STAGE_NAMES[i]: float((v["stage"][vv] == i).mean()) for i in range(1, 5)} for lab, v in forecast.items()},
+                   forecast_mean_cs={lab: float(np.nanmean(v["cs"][vv])) for lab, v in forecast.items()},
+                   timing_fraction={k: float((timing[vv] == i).mean()) for i, k in enumerate(["past peak", "peak now", "next 2 weeks", "2-4 weeks", "later"], 1)})
     json.dump(summary, open(os.path.join(outdir, f"summary_{name}.json"), "w"), indent=1)
     print(json.dumps({k: v for k, v in summary.items() if k not in ("weekly_stage_fraction",)}, indent=1))
 
-    clusters(name, outdir, T, res, veg, decid, cs_now, stage, days_to_peak, z["velocity_psri"], dem, parks, sea, lc, weekly, anc, summary)
+    clusters(name, outdir, T, res, veg, decid, cs_now, stage, days_to_peak, z["velocity_psri"], dem, parks, sea, lc, weekly, anc, summary, forecast, conf)
 
 # ----------------------------------------------------------------------------- clusters
-def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, parks, sea, lc, weekly, anc, summary):
+def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, parks, sea, lc, weekly, anc, summary, forecast, conf):
     from rasterio import features
     from rasterio.transform import Affine
     from shapely.geometry import shape, mapping, Point
@@ -441,7 +486,11 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
             d2p = min(d2p, -14.0)
         timing = 1.0 if abs(d2p) <= 7 else max(0.0, 1 - (abs(d2p) - 7) / 14) if d2p > 0 else max(0.1, 1 - (abs(d2p) - 7) / 10)
         visit = 100 * (0.45 * min(intensity / 0.6, 1) + 0.2 * timing + 0.2 * access + 0.15 * min(math.log1p(area_ha) / math.log1p(400), 1))
-        series = {wl: float(np.nanmean(np.where(vv[:Hc * k, :Wc * k] > 0, weekly[wl]["cs"][:Hc * k, :Wc * k], np.nan)[np.kron(m, np.ones((k, k), bool))])) for wl in weekly}
+        pm = np.kron(m, np.ones((k, k), bool)); vvm = vv[:Hc * k, :Wc * k] > 0
+        series = {wl: float(np.nanmean(np.where(vvm, weekly[wl]["cs"][:Hc * k, :Wc * k], np.nan)[pm])) for wl in weekly}
+        fseries = {fl: float(np.nanmean(np.where(vvm, forecast[fl]["cs"][:Hc * k, :Wc * k], np.nan)[pm])) for fl in forecast}
+        cmean = float(np.nanmean(np.where(vvm, conf[:Hc * k, :Wc * k], np.nan)[pm]))
+        peak_date = str(TODAY + dt.timedelta(days=int(round(d2p)))); peak_win = int(round(5 + 12 * (1 - cmean)))
         poly_ll = shapely.transform(poly, lambda xy: np.column_stack(to_ll.transform(xy[:, 0], xy[:, 1])))
         feats.append(dict(type="Feature", geometry=mapping(poly_ll), properties=dict(
             label=label, area_ha=round(area_ha, 1), intensity=round(intensity, 3), peak_fraction=round(peakf, 3),
@@ -449,6 +498,8 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
             in_seattle=seaf > 0.5, access=round(access, 2), visit_score=round(visit, 1), region=name,
             canopy_fraction=round(canopy, 2), kind="canopy" if canopy >= 0.6 else "meadow / shrub", leafoff_fraction=round(leafoff, 3),
             series={k_: (None if np.isnan(v) else round(v, 3)) for k_, v in series.items()},
+            forecast={k_: (None if np.isnan(v) else round(v, 3)) for k_, v in fseries.items()},
+            peak_date=peak_date, peak_window_days=peak_win, confidence=round(cmean, 2),
             lon=round(float(poly_ll.centroid.x), 5), lat=round(float(poly_ll.centroid.y), 5))))
     feats.sort(key=lambda f: -f["properties"]["visit_score"])
     for r, f in enumerate(feats, 1):
@@ -479,6 +530,9 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
             if pf >= 0.35: d2p = min(d2p, 0.0)
             if lf >= 0.3: d2p = min(d2p, -14.0)
             series = {wl: float(np.nanmean(weekly[wl]["cs"][r0:r1, c0:c1][m])) for wl in weekly}
+            fseries = {fl: float(np.nanmean(forecast[fl]["cs"][r0:r1, c0:c1][m])) for fl in forecast}
+            cmean = float(np.nanmean(conf[r0:r1, c0:c1][m])); peak_win = int(round(5 + 12 * (1 - cmean)))
+            peak_date = None if np.isnan(d2p) else str(TODAY + dt.timedelta(days=int(round(d2p))))
             timing = 1.0 if abs(d2p) <= 7 else max(0.0, 1 - (abs(d2p) - 7) / 14) if d2p > 0 else max(0.1, 1 - (abs(d2p) - 7) / 10)
             visit = 100 * (0.5 * min(intensity / 0.6, 1) + 0.25 * timing + 0.25)
             dest.append(dict(type="Feature", geometry=dict(type="Point", coordinates=[d["lon"], d["lat"]]), properties=dict(
@@ -487,7 +541,9 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
                 days_to_peak=None if np.isnan(d2p) else round(d2p, 1), elev_m=round(float(np.nanmean(dem[r0:r1, c0:c1][m]))),
                 peak_fraction=round(pf, 3), leafoff_fraction=round(lf, 3), canopy_fraction=round(float((lc[r0:r1, c0:c1][m] == 10).mean()), 2),
                 visit_score=round(visit, 1), region=name,
-                series={k_: (None if np.isnan(v) else round(v, 3)) for k_, v in series.items()})))
+                series={k_: (None if np.isnan(v) else round(v, 3)) for k_, v in series.items()},
+                forecast={k_: (None if np.isnan(v) else round(v, 3)) for k_, v in fseries.items()},
+                peak_date=peak_date, peak_window_days=peak_win, confidence=round(cmean, 2))))
         json.dump(dict(type="FeatureCollection", features=dest), open(os.path.join(outdir, f"destinations_{name}.geojson"), "w"))
         print(f"[{name}] {len(dest)} destinations scored; top:", sorted([(f['properties']['name'], f['properties']['visit_score']) for f in dest], key=lambda t: -t[1])[:6])
 

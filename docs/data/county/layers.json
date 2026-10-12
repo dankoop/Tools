@@ -198,74 +198,52 @@
     ]
    }
   },
-  "days_to_peak": {
-   "file": "days_to_peak.png",
-   "title": "Predicted days to peak colour",
+  "timing": {
+   "file": "timing.png",
+   "title": "Predicted peak timing",
    "legend": {
-    "type": "stops",
-    "stops": [
+    "type": "classes",
+    "items": [
      [
-      0.0,
+      "past peak",
       [
-       183,
-       183,
-       183
+       120,
+       85,
+       60
       ]
      ],
      [
-      0.3,
+      "peak now",
       [
-       140,
-       140,
-       140
-      ]
-     ],
-     [
-      0.375,
-      [
-       7,
+       8,
        51,
        66
       ]
      ],
      [
-      0.5,
+      "next 2 weeks",
       [
        38,
-       114,
-       132
+       115,
+       130
       ]
      ],
      [
-      0.75,
+      "2-4 weeks",
       [
        112,
        181,
-       193
+       194
       ]
      ],
      [
-      1.0,
+      "later",
       [
-       214,
-       232,
-       237
+       205,
+       226,
+       230
       ]
      ]
-    ],
-    "labels": [
-     "past",
-     "now",
-     "+1 wk",
-     "+2-3 wk",
-     "+4 wk+"
-    ],
-    "positions": [
-     0.1,
-     0.375,
-     0.5,
-     0.75,
-     1.0
     ]
    }
   },
@@ -339,6 +317,36 @@
    "stage": "wk_Oct_6_12_stage.png",
    "rgb": "wk_Oct_6_12_rgb.webp",
    "coverage": 0.675
+  }
+ ],
+ "forecast": [
+  {
+   "label": "Oct 13-19",
+   "start": "2026-10-13",
+   "end": "2026-10-19",
+   "cs": "fc_Oct_13_19_cs.png",
+   "stage": "fc_Oct_13_19_stage.png"
+  },
+  {
+   "label": "Oct 20-26",
+   "start": "2026-10-20",
+   "end": "2026-10-26",
+   "cs": "fc_Oct_20_26_cs.png",
+   "stage": "fc_Oct_20_26_stage.png"
+  },
+  {
+   "label": "Oct 27-Nov 2",
+   "start": "2026-10-27",
+   "end": "2026-11-02",
+   "cs": "fc_Oct_27_Nov_2_cs.png",
+   "stage": "fc_Oct_27_Nov_2_stage.png"
+  },
+  {
+   "label": "Nov 3-9",
+   "start": "2026-11-03",
+   "end": "2026-11-09",
+   "cs": "fc_Nov_3_9_cs.png",
+   "stage": "fc_Nov_3_9_stage.png"
   }
  ]
 }
