@@ -114,7 +114,7 @@ def main():
         f_st = stage_layer(f"wk_{slug}_stage", z[f"wk|{lab}|stage"])
         rgb = np.stack([warp(z[f"wk|{lab}|rgb"][i], T, C.UTM, dst_T, dst_crs, shape, Resampling.average) for i in range(3)], axis=-1)
         f_rgb = save_rgba(f"wk_{slug}_rgb", rgb, ((rgb.max(axis=-1) > 0) & region_mask) * 1.0, fmt="webp")
-        cov = float((z[f"wk|{lab}|cs"] > 0)[z["veg"]].mean()) if z["veg"].any() else 0   # on the native grid, before resampling
+        cov = float((z[f"wk|{lab}|nobs"] > 0)[z["veg"]].mean()) if z["veg"].any() else 0   # share of vegetation with a clear pass that week, on the native grid
         weeks.append(dict(label=lab, cs=f_cs, stage=f_st, rgb=f_rgb, coverage=round(cov, 3)))
     layers["weeks"] = weeks
     fcs = []
