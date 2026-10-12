@@ -2,20 +2,23 @@
 
 Registration: best match at zero shift (edge correlation 0.48, brightness 0.73), so alignment is within one 10 m cell. Oct 8 pass is not hazy (blue 0.054 vs 0.041-0.078 in September passes).
 
-## What the predicted cells actually contain (labelled by eye from the 2 cm ortho)
+## Full check: 289 cells labelled by the image owner (Oct 12), map's Now layer from Oct 8
 
-| predicted | peak_decid | turning_decid | green | conifer | lawn | nonveg | n |
+Cells were sampled across the map's predicted classes plus 40 cells that looked warm-coloured in the drone image, shown blind (prediction hidden), labelled by what fills the 10 m square and how much of it a deciduous crown covers.
+
+| map prediction | peak | turning | green deciduous | conifer | lawn | built | n |
 |---|---|---|---|---|---|---|---|
-| peak | 3 | 2 | 4 | 8 | 0 | 7 | 24 |
-| turning | 0 | 2 | 6 | 6 | 1 | 9 | 24 |
-| green | 0 | 1 | 4 | 4 | 1 | 14 | 24 |
-| evergreen_hist | 0 | 0 | 2 | 2 | 3 | 9 | 16 |
-| nonveg | 0 | 0 | 0 | 0 | 0 | 8 | 8 |
+| peak | 6 | 12 | 5 | 22 | 5 | 10 | 60 |
+| turning | 2 | 10 | 8 | 27 | 8 | 5 | 60 |
+| green | 0 | 13 | 2 | 27 | 8 | 14 | 64 |
+| masked | 3 | 18 | 4 | 21 | 28 | 31 | 105 |
 
-Precision of 'peak' cells (any turning or peak deciduous tree inside): 5/24. 'Turning': 2/24. 31 of 48 cells predicted turning or peak hold no deciduous tree at all.
+**Precision.** Of 60 cells the map calls peak, 18 hold a turning or peak deciduous tree (30%); of 60 called turning, 12 do (20%). 101 of the 120 cells called turning or peak hold no colour; most are conifer canopy (49) or lawn, roofs and pavement (28).
 
-Recall sample (32 cells chosen where the drone image shows warm colour, verified by eye): 7 held real colour; the map called 1 peak, 4 green with deciduous likelihood near 0, 2 were masked as non-vegetation.
+**Recall.** Of the 64 cells you labelled as holding a turning or peak tree, the map calls 18 peak, 12 turning, 13 green and excludes 21 through its vegetation and deciduous masks. Only 18 of the 64 have a crown covering more than half the cell; 43 are partial crowns.
 
-Mechanism: conifer canopy is dark (reflectance sum 0.07-0.09 vs 0.15 for turned trees). Hue computed from such small values is unstable, and the lower October sun shifted conifer hue from ~120 to ~95 degrees with no real colour change, which the score reads as turning. Built, mixed cells pass the September NDVI > 0.4 vegetation test and then produce spurious hue shifts.
+**Can tuning fix it?** No, not with these inputs. On a geographic split (alternating 200 m blocks), every single satellite feature separates colour cells from the rest with AUC 0.52 to 0.58, a 16-feature logistic model reaches 0.55 held-out, and the best hand rule 0.65. Restricting to crowns that fill most of the cell helps only a little (AUC 0.72). For the 11 cells labelled peak, the best rule (warm hue, hue shift, and a brightness gate) reaches AUC 0.74 and 14% precision at 73% recall. The brightness gate does remove most conifer false positives but loses real cells too; the net change is within noise, so the map's rules were left as they are.
 
-Tested fix on the labelled cells: gating the hue term by baseline brightness cuts false 'peak' cells from 18 to 1 of 87 at the 0.45 threshold while keeping 2 of 4 true peaks; AUC 0.71 -> 0.77. Not yet applied to the map.
+**Reading.** In a mixed suburb a 10 m pixel is a blend of a crown, its neighbours, a roof and shadow, and the three-day gap to the drone pass does not explain the result. The layer should be read as indicative at pixel level in residential areas, and the ranked places and regional summaries, which aggregate many pixels, are the trustworthy products. Three things would change this: a tree-canopy and species layer (King County LiDAR canopy, city tree inventories) to replace the spectral masks; aggregation to 30 to 50 m before classification; or imagery that resolves crowns (NAIP at 60 cm, PlanetScope at 3 m). A second drone flight over a park or forested area would show whether the layer performs where crowns fill cells.
+
+Files: `labelled_cells_290.json` (labels joined to every satellite value), chip sheets and the overlay above, and the labelling page under `/labeler` in the repository.

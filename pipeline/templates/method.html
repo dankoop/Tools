@@ -165,8 +165,27 @@ colour      = (0.6 × hue_shift + 0.4 × psri_rise) × leaves_on</pre>
 <p>The <b>worth-a-visit score</b> ranks places; it is not a measurement. It weights colour intensity 45%, timing against the predicted peak 20% (full marks within a week of peak), public access 20% (park land, or within 1.5 km of neighbourhoods), and size 15% (log of area, so a 400 ha valley does not swamp a 4 ha garden). A score of 90 means "go this week"; 50 means "worth it if you are nearby".</p>
 </div></details>
 
+<details class="msec" id="m-accuracy" open>
+<summary><span class="mnum">11</span><span class="mtitle">Measured accuracy: drone check in Shoreline</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>On Oct 11 a 2 cm drone orthoimage was flown over 0.8 km² of southern Shoreline, three days after the Oct 8 pass behind the map's "Now" layer. 289 of the map's 10 m cells were labelled by eye from that image, blind to the prediction, across the predicted classes plus cells that looked colourful in the drone image. Alignment between the two was checked (within one cell) and the Oct 8 pass was not hazy.</p>
+<div class="tablewrap"><table>
+<tr><th>Map says</th><th>peak tree</th><th>turning tree</th><th>green deciduous</th><th>conifer</th><th>lawn</th><th>built</th><th>n</th></tr>
+<tr><td>peak</td><td>6</td><td>12</td><td>5</td><td>22</td><td>5</td><td>10</td><td>60</td></tr>
+<tr><td>turning</td><td>2</td><td>10</td><td>8</td><td>27</td><td>8</td><td>5</td><td>60</td></tr>
+<tr><td>green</td><td>0</td><td>13</td><td>2</td><td>27</td><td>8</td><td>14</td><td>64</td></tr>
+<tr><td>masked</td><td>3</td><td>18</td><td>4</td><td>21</td><td>28</td><td>31</td><td>105</td></tr>
+</table></div>
+<ul>
+  <li><b>Precision.</b> 30% of cells shown as peak and 20% shown as turning hold a tree that is actually turning or at peak. Most of the rest are conifer canopy, roofs or pavement sharing the pixel.</li>
+  <li><b>Recall.</b> Of 64 cells holding a turning or peak tree, the map flags 30 as turning or peak, calls 13 green and excludes 21 through its vegetation masks. Two-thirds of those crowns cover less than half their cell.</li>
+  <li><b>Not fixable by tuning.</b> On a geographic split, no satellite feature or combination separates colour cells from the rest better than AUC 0.65 (chance is 0.50); a 16-feature model reaches 0.55 held-out. The pixel is simply a blend.</li>
+</ul>
+<p class="mnote"><b>What this means for reading the map.</b> In residential areas, treat the 10 m colour and stage layers as indicative, not as a per-tree reading. The ranked places and the region summaries average hundreds of pixels and are the products to trust. The map's rules were not changed on the back of this test, because every candidate change was within noise. What would change the result: a tree-canopy and species layer in place of the spectral masks, classifying at 30 to 50 m rather than 10 m, or imagery that resolves crowns. The full table, chips and labels are in the repository under <code>validation/</code>.</p>
+</div></details>
+
 <details class="msec" id="m-limits">
-<summary><span class="mnum">11</span><span class="mtitle">Reading uncertainty and known limits</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<summary><span class="mnum">12</span><span class="mtitle">Reading uncertainty and known limits</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
 <div class="mbody">
 <ul>
   <li><b>A pixel mixes trees.</b> At 10 m, one pixel can hold a red maple, a cedar and a roof. The score is the blend, so a vivid single tree in a conifer stand reads as "turning", not "peak".</li>
@@ -180,7 +199,7 @@ colour      = (0.6 × hue_shift + 0.4 × psri_rise) × leaves_on</pre>
 </div></details>
 
 <details class="msec" id="m-sources">
-<summary><span class="mnum">12</span><span class="mtitle">Data sources and credits</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<summary><span class="mnum">13</span><span class="mtitle">Data sources and credits</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
 <div class="mbody">
 <ul>
   <li>Copernicus Sentinel-2 Level-2A surface reflectance, European Space Agency; cloud-optimized copies by Element 84 on the AWS Open Data registry.</li>
