@@ -1,0 +1,322 @@
+[
+ {
+  "id": "recall-01",
+  "row": 114,
+  "col": 108,
+  "pred": "masked",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.9
+ },
+ {
+  "id": "recall-02",
+  "row": 83,
+  "col": 60,
+  "pred": "green",
+  "cs": 0.0,
+  "decid": 0.02,
+  "veg": true,
+  "drone_turned": 1.0
+ },
+ {
+  "id": "recall-03",
+  "row": 55,
+  "col": 107,
+  "pred": "turning",
+  "cs": 0.29,
+  "decid": 0.08,
+  "veg": true,
+  "drone_turned": 0.71
+ },
+ {
+  "id": "recall-04",
+  "row": 113,
+  "col": 105,
+  "pred": "green",
+  "cs": 0.11,
+  "decid": 0.0,
+  "veg": true,
+  "drone_turned": 0.88
+ },
+ {
+  "id": "recall-05",
+  "row": 80,
+  "col": 70,
+  "pred": "masked",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.48
+ },
+ {
+  "id": "recall-06",
+  "row": 99,
+  "col": 88,
+  "pred": "masked",
+  "cs": null,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.88
+ },
+ {
+  "id": "recall-07",
+  "row": 59,
+  "col": 57,
+  "pred": "green",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": true,
+  "drone_turned": 0.71
+ },
+ {
+  "id": "recall-08",
+  "row": 52,
+  "col": 79,
+  "pred": "masked",
+  "cs": null,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.77
+ },
+ {
+  "id": "recall-09",
+  "row": 46,
+  "col": 77,
+  "pred": "masked",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.54
+ },
+ {
+  "id": "recall-10",
+  "row": 118,
+  "col": 113,
+  "pred": "green",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": true,
+  "drone_turned": 0.54
+ },
+ {
+  "id": "recall-11",
+  "row": 104,
+  "col": 76,
+  "pred": "green",
+  "cs": 0.0,
+  "decid": 0.33,
+  "veg": true,
+  "drone_turned": 0.67
+ },
+ {
+  "id": "recall-12",
+  "row": 69,
+  "col": 85,
+  "pred": "peak",
+  "cs": 0.59,
+  "decid": 0.8,
+  "veg": true,
+  "drone_turned": 0.99
+ },
+ {
+  "id": "recall-13",
+  "row": 99,
+  "col": 113,
+  "pred": "green",
+  "cs": 0.0,
+  "decid": 0.16,
+  "veg": true,
+  "drone_turned": 0.62
+ },
+ {
+  "id": "recall-14",
+  "row": 55,
+  "col": 63,
+  "pred": "green",
+  "cs": 0.09,
+  "decid": 0.0,
+  "veg": true,
+  "drone_turned": 0.68
+ },
+ {
+  "id": "recall-15",
+  "row": 79,
+  "col": 72,
+  "pred": "turning",
+  "cs": 0.28,
+  "decid": 0.0,
+  "veg": true,
+  "drone_turned": 0.99
+ },
+ {
+  "id": "recall-16",
+  "row": 69,
+  "col": 56,
+  "pred": "green",
+  "cs": 0.06,
+  "decid": 0.0,
+  "veg": true,
+  "drone_turned": 0.65
+ },
+ {
+  "id": "recall-17",
+  "row": 110,
+  "col": 102,
+  "pred": "masked",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.54
+ },
+ {
+  "id": "recall-18",
+  "row": 135,
+  "col": 56,
+  "pred": "masked",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 1.0
+ },
+ {
+  "id": "recall-19",
+  "row": 86,
+  "col": 63,
+  "pred": "green",
+  "cs": 0.06,
+  "decid": 0.16,
+  "veg": true,
+  "drone_turned": 0.96
+ },
+ {
+  "id": "recall-20",
+  "row": 85,
+  "col": 93,
+  "pred": "masked",
+  "cs": null,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.99
+ },
+ {
+  "id": "recall-21",
+  "row": 82,
+  "col": 60,
+  "pred": "green",
+  "cs": 0.0,
+  "decid": 0.02,
+  "veg": true,
+  "drone_turned": 0.93
+ },
+ {
+  "id": "recall-22",
+  "row": 72,
+  "col": 61,
+  "pred": "masked",
+  "cs": null,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.56
+ },
+ {
+  "id": "recall-23",
+  "row": 64,
+  "col": 110,
+  "pred": "masked",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.98
+ },
+ {
+  "id": "recall-24",
+  "row": 83,
+  "col": 101,
+  "pred": "masked",
+  "cs": null,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.82
+ },
+ {
+  "id": "recall-25",
+  "row": 63,
+  "col": 104,
+  "pred": "masked",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.47
+ },
+ {
+  "id": "recall-26",
+  "row": 106,
+  "col": 74,
+  "pred": "green",
+  "cs": 0.0,
+  "decid": 0.91,
+  "veg": true,
+  "drone_turned": 0.84
+ },
+ {
+  "id": "recall-27",
+  "row": 106,
+  "col": 105,
+  "pred": "masked",
+  "cs": null,
+  "decid": 0.0,
+  "veg": true,
+  "drone_turned": 0.5
+ },
+ {
+  "id": "recall-28",
+  "row": 82,
+  "col": 103,
+  "pred": "masked",
+  "cs": 0.05,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.52
+ },
+ {
+  "id": "recall-29",
+  "row": 40,
+  "col": 61,
+  "pred": "masked",
+  "cs": 0.0,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.79
+ },
+ {
+  "id": "recall-30",
+  "row": 104,
+  "col": 116,
+  "pred": "turning",
+  "cs": 0.21,
+  "decid": 0.16,
+  "veg": true,
+  "drone_turned": 0.68
+ },
+ {
+  "id": "recall-31",
+  "row": 55,
+  "col": 115,
+  "pred": "green",
+  "cs": 0.06,
+  "decid": 0.03,
+  "veg": true,
+  "drone_turned": 0.87
+ },
+ {
+  "id": "recall-32",
+  "row": 87,
+  "col": 52,
+  "pred": "masked",
+  "cs": 0.04,
+  "decid": 0.0,
+  "veg": false,
+  "drone_turned": 0.86
+ }
+]
