@@ -6,11 +6,11 @@
   ],
   [
    47.74636953407691,
-   -122.21616966926518
+   -122.21605852977443
   ]
  ],
- "width": 1400,
- "height": 2400,
+ "width": 1738,
+ "height": 2978,
  "layers": {
   "cs_now": {
    "file": "cs_now.png",
@@ -295,28 +295,28 @@
    "cs": "wk_Sep_15_21_cs.png",
    "stage": "wk_Sep_15_21_stage.png",
    "rgb": "wk_Sep_15_21_rgb.webp",
-   "coverage": 0.98
+   "coverage": 0.979
   },
   {
    "label": "Sep 22-28",
    "cs": "wk_Sep_22_28_cs.png",
    "stage": "wk_Sep_22_28_stage.png",
    "rgb": "wk_Sep_22_28_rgb.webp",
-   "coverage": 0.711
+   "coverage": 0.666
   },
   {
    "label": "Sep 29-Oct 5",
    "cs": "wk_Sep_29_Oct_5_cs.png",
    "stage": "wk_Sep_29_Oct_5_stage.png",
    "rgb": "wk_Sep_29_Oct_5_rgb.webp",
-   "coverage": 0.716
+   "coverage": 0.708
   },
   {
    "label": "Oct 6-12",
    "cs": "wk_Oct_6_12_cs.png",
    "stage": "wk_Oct_6_12_stage.png",
    "rgb": "wk_Oct_6_12_rgb.webp",
-   "coverage": 0.714
+   "coverage": 0.979
   }
  ],
  "forecast": [

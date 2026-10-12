@@ -302,21 +302,21 @@
    "cs": "wk_Sep_22_28_cs.png",
    "stage": "wk_Sep_22_28_stage.png",
    "rgb": "wk_Sep_22_28_rgb.webp",
-   "coverage": 0.914
+   "coverage": 0.908
   },
   {
    "label": "Sep 29-Oct 5",
    "cs": "wk_Sep_29_Oct_5_cs.png",
    "stage": "wk_Sep_29_Oct_5_stage.png",
    "rgb": "wk_Sep_29_Oct_5_rgb.webp",
-   "coverage": 0.744
+   "coverage": 0.737
   },
   {
    "label": "Oct 6-12",
    "cs": "wk_Oct_6_12_cs.png",
    "stage": "wk_Oct_6_12_stage.png",
    "rgb": "wk_Oct_6_12_rgb.webp",
-   "coverage": 0.675
+   "coverage": 0.742
   }
  ],
  "forecast": [
