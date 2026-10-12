@@ -56,10 +56,15 @@ def read_band_to_grid(href, transform, width, height, res, resampling):
 
 def scene_quality_mask(bands, scl):
     """Clear-sky land mask: SCL keep-classes, spectral cloud/shadow tests, 2-px cloud dilation."""
-    blue = (bands[C.BAND_ORDER.index("blue")].astype(np.float32) - C.BOA_OFFSET) / C.BOA_SCALE
-    nir = (bands[C.BAND_ORDER.index("nir")].astype(np.float32) - C.BOA_OFFSET) / C.BOA_SCALE
-    swir = (bands[C.BAND_ORDER.index("swir16")].astype(np.float32) - C.BOA_OFFSET) / C.BOA_SCALE
-    nodata = (bands == 0).any(axis=0) | (scl == 0)
+    return quality_mask_from(bands[C.BAND_ORDER.index("blue")], bands[C.BAND_ORDER.index("nir")],
+                             bands[C.BAND_ORDER.index("swir16")], (bands == 0).any(axis=0), scl)
+
+def quality_mask_from(blue_dn, nir_dn, swir_dn, nodata, scl):
+    """Same mask from the three bands it needs (lets callers skip building the full band stack)."""
+    blue = (blue_dn.astype(np.float32) - C.BOA_OFFSET) / C.BOA_SCALE
+    nir = (nir_dn.astype(np.float32) - C.BOA_OFFSET) / C.BOA_SCALE
+    swir = (swir_dn.astype(np.float32) - C.BOA_OFFSET) / C.BOA_SCALE
+    nodata = nodata | (scl == 0)
     cloudy = np.isin(scl, [1, 2, 3, 8, 9, 10, 11]) | (blue > 0.22) | ((blue > 0.12) & (swir > 0.35))
     cloudy = ndimage.binary_dilation(cloudy, iterations=2)
     shadow = (nir < 0.06) & (scl != C.SCL_WATER)

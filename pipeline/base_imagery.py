@@ -13,7 +13,7 @@ from rasterio.transform import Affine
 from scipy import ndimage
 from PIL import Image
 import config as C
-from ingest_s2 import region_grid, read_band_to_grid, scene_quality_mask
+from ingest_s2 import region_grid, read_band_to_grid, quality_mask_from
 
 os.environ.update(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".tif", GDAL_HTTP_MULTIRANGE="YES",
                   GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="YES", VSI_CACHE="TRUE", GDAL_HTTP_MAX_RETRY="5", GDAL_HTTP_RETRY_DELAY="2")
@@ -24,6 +24,7 @@ def main():
     ap.add_argument("--dates", default=None, help="comma-separated pass dates to use (latest wins); default: every pass since --min-date")
     ap.add_argument("--name", default="base", help="output subdirectory under OUTDIR (e.g. base_sep16)")
     ap.add_argument("--label", default=None, help="human label for the base, stored in base.json")
+    ap.add_argument("--clean-cloud", type=float, default=15, help="passes at or below this cloud %% use the scene classification alone (keeps bright roofs)")
     a = ap.parse_args(); out = os.path.join(a.outdir, a.name); os.makedirs(out, exist_ok=True)
     T, W, H = region_grid("county", 10); res = 10
     scenes = [s for s in json.load(open(a.scenes)) if s["date"] >= a.min_date and s["cloud"] <= a.max_cloud and s["nodata"] < 90]
@@ -38,13 +39,16 @@ def main():
                 fb = {b: ex.submit(read_band_to_grid, s["assets"][b], T, W, H, res, Resampling.nearest) for b in ("red", "green", "blue", "nir", "swir16")}
                 fs = ex.submit(read_band_to_grid, s["assets"]["scl"], T, W, H, res, Resampling.nearest)
                 bands = {b: f.result() for b, f in fb.items()}; scl = fs.result().astype(np.uint8)
-            # quality mask expects the full band stack order; build a minimal one
-            stack = np.zeros((len(C.BAND_ORDER), H, W), np.uint16)
-            for b, arr in bands.items():
-                stack[C.BAND_ORDER.index(b)] = arr
-            for b in C.BAND_ORDER:            # fill unread bands so the "nodata" test only looks at what we read
-                if b not in bands: stack[C.BAND_ORDER.index(b)] = np.where(bands["red"] > 0, 1, 0)
-            valid = scene_quality_mask(stack, scl) | (np.isin(scl, [6]) & (bands["red"] > 0))   # keep water too
+            nodata = (bands["red"] == 0) | (bands["green"] == 0) | (bands["blue"] == 0)
+            if s["cloud"] <= a.clean_cloud:
+                # near cloud-free pass: trust the scene classification alone. The spectral brightness tests in the
+                # analysis mask are tuned to protect vegetation indices and also discard bright roofs, car parks and
+                # beaches, which in a base image should be visible, not holes.
+                cloud = np.isin(scl, [1, 3, 8, 9, 10, 11]) | nodata
+                valid = ~ndimage.binary_dilation(cloud, iterations=2) & ~nodata & (scl != 0)
+            else:
+                valid = quality_mask_from(bands["blue"], bands["nir"], bands["swir16"], nodata, scl) | ((scl == 6) & (bands["red"] > 0))   # keep water too
+            del bands["nir"], bands["swir16"]
             take = valid & ~filled
             for i, b in enumerate(("red", "green", "blue")):
                 rgb[i][take] = bands[b][take]

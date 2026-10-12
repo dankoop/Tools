@@ -81,7 +81,7 @@ def main(out):
         if z is None or not z["valid"][sl][idx]: return None
         b = z["bands"][:, sl[0], sl[1]][:, idx[0], idx[1]].astype(float) / C.BOA_SCALE
         return {k: round(float(b[C.BAND_ORDER.index(k)]), 4) for k in C.BAND_ORDER}
-    SEP = ["2026-09-16", "2026-09-08", "2026-09-18", "2026-09-06"]; OCT = ["2026-10-06", "2026-10-03", "2026-10-08", "2026-10-01"]
+    SEP = ["2026-09-16", "2026-09-08", "2026-09-18", "2026-09-06"]; OCT = ["2026-10-11", "2026-10-08", "2026-10-06", "2026-10-01"]
     def pick_pixel(cand, score):
         order = np.argsort(-np.where(cand, score, -9), axis=None)
         for flat in order[:400]:

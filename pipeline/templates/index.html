@@ -308,6 +308,7 @@ function stackBar(sf){const keys=[['green','c1'],['turning','c2'],['peak','c3'],
 
 // ---------------------------------------------------------------- map
 const map=L.map('map',{zoomControl:false,attributionControl:true,minZoom:8,maxZoom:16,zoomSnap:0.25,zoomDelta:0.5});
+window.__map=map;   // test hook for scripted screenshots
 L.control.zoom({position:'topright'}).addTo(map);
 map.attributionControl.setPrefix('').addAttribution('Copernicus Sentinel-2 via AWS · ESA WorldCover · NOAA GHCN, HRRR, GFS · roads & water © Overture Maps / OpenStreetMap contributors');
 const countyB=site.regions.county?site.regions.county.bounds:site.regions.seattle.bounds;
@@ -372,7 +373,8 @@ function applyLayer(){
 function renderProv(){
   if(isForecast(week)){ const f=fweeks[week-NOW-1]; $('#prov').innerHTML=`<span><span class="fctag">forecast</span> ${f?f.label:''}: predicted from each pixel's 2023–25 colour curve and this year's progress; faded where uncertain. Latest real pass <b>${dstr(isoDate(summary.latest_obs))}</b>.</span>`; return; }
   const cov=week>=NOW?summary.coverage_latest_week:weeks[week].coverage;
-  const nowNote=week>=NOW?`“Now” = latest clear pass per pixel, ${dstr(isoDate(summary.now_oldest_obs||summary.latest_obs))}–${dstr(isoDate(summary.latest_obs))}`:`median of clear passes, ${weeks[week].label}`;
+  const oldest=isoDate(summary.now_oldest_obs||summary.latest_obs), latest=isoDate(summary.latest_obs);
+  const nowNote=week>=NOW?(dstr(oldest)===dstr(latest)?`“Now” = the ${dstr(latest)} pass`:`“Now” = latest clear pass per pixel, ${dstr(oldest)}–${dstr(latest)}`):`median of clear passes, ${weeks[week].label}`;
   $('#prov').innerHTML=`<span>Latest clear pass <b>${dstr(isoDate(summary.latest_obs))}</b></span><span>${nowNote}</span><span>cloud-free ${Math.round((cov||0)*100)}% of tree area</span>`;
 }
 // stepper
