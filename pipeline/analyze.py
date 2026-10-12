@@ -247,7 +247,7 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
     H, W = z[f"{base}|ndvi"].shape
     lc, dem, kc, sea, parks = anc["landcover"], anc["dem"], anc["kc_mask"], anc["seattle_mask"], anc["park_mask"]
     hue0, psri0, ndvi0, chroma0 = z[f"{base}|hue"], z[f"{base}|psri"], z[f"{base}|ndvi"], z[f"{base}|chroma"]
-    region_mask = kc if name == "county" else sea
+    region_mask = sea if name == "seattle" else kc
     veg = (ndvi0 > 0.4) & ~np.isin(lc, [40, 70, 80]) & region_mask & np.isfinite(hue0)
 
     # -- phenology layers resampled to this grid
@@ -419,7 +419,7 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
     from shapely.geometry import shape, mapping, Point
     from shapely.ops import unary_union
     from pyproj import Transformer
-    cell_m = 100 if name == "seattle" else 200
+    cell_m = 100 if res == 10 else 200
     k = cell_m // res
     H, W = veg.shape; Hc, Wc = H // k, W // k
     def block(a, fn):
@@ -519,6 +519,8 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
                 continue
             if name == "county" and sea[r, c]:
                 continue   # scored on the 10 m Seattle grid instead
+            if name not in ("seattle", "county"):
+                continue   # validation grids do not score destinations
             r0, r1, c0, c1 = max(r - rad, 0), min(r + rad, H), max(c - rad, 0), min(c + rad, W)
             yy, xx = np.ogrid[r0:r1, c0:c1]; disk = (yy - r) ** 2 + (xx - c) ** 2 <= rad * rad
             m = disk & (vv[r0:r1, c0:c1] > 0)

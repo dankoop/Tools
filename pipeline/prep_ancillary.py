@@ -190,7 +190,7 @@ POINTS = {"Seattle": (-122.33, 47.62), "Bellevue / Eastside": (-122.15, 47.6), "
 
 def main():
     import sys
-    for name, d in ([] if "--weather-only" in sys.argv else [("county", "s2_county"), ("seattle", "s2_seattle"), ("baseline", "s2_baseline_2025")]):
+    for name, d in ([] if "--weather-only" in sys.argv else [("county", "s2_county"), ("seattle", "s2_seattle"), ("baseline", "s2_baseline_2025"), ("shoreline", "s2_shoreline")]):
         if os.path.exists(os.path.join(CACHE, d, "grid.json")):
             prep_region(os.path.join(CACHE, d), name)
     meta = parse_stations()

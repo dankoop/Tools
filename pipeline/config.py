@@ -23,6 +23,8 @@ REGIONS = {
     "county": dict(bbox=(-122.55, 47.07, -121.05, 47.79), res=20),
     # Seattle city limits with ~500 m margin
     "seattle": dict(bbox=(-122.445, 47.48, -122.22, 47.745), res=10),
+    # validation window: southern Shoreline drone orthoimage footprint with a 300 m margin
+    "shoreline": dict(bbox=(-122.358, 47.7405, -122.336, 47.7565), res=10),
 }
 
 # SCL classes kept as potentially-valid land observations
