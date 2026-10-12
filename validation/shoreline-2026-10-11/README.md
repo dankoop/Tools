@@ -22,3 +22,18 @@ Cells were sampled across the map's predicted classes plus 40 cells that looked 
 **Reading.** In a mixed suburb a 10 m pixel is a blend of a crown, its neighbours, a roof and shadow, and the three-day gap to the drone pass does not explain the result. The layer should be read as indicative at pixel level in residential areas, and the ranked places and regional summaries, which aggregate many pixels, are the trustworthy products. Three things would change this: a tree-canopy and species layer (King County LiDAR canopy, city tree inventories) to replace the spectral masks; aggregation to 30 to 50 m before classification; or imagery that resolves crowns (NAIP at 60 cm, PlanetScope at 3 m). A second drone flight over a park or forested area would show whether the layer performs where crowns fill cells.
 
 Files: `labelled_cells_290.json` (labels joined to every satellite value), chip sheets and the overlay above, and the labelling page under `/labeler` in the repository.
+
+## Re-scored on Oct 12 against the rebuilt layer (Sentinel-2 pass of 2026-10-11, same day as the drone flight)
+
+| layer | flagged turning or peak | hold a turning or peak tree | conifer among flagged | lawn or built among flagged | colour cells found (of 64) | full-crown colour cells found (of 18) |
+|---|---|---|---|---|---|---|
+| Oct 11 pass, history-based deciduous test | 95 | 30 (32%) | 32 | 28 | 30 | 13 |
+| Oct 11 pass, seasonal deciduous test | 28 | 14 (50%) | 4 | 9 | 14 | 10 |
+
+Per class with the seasonal test: peak 7 of 18 correct (39%), turning 7 of 10 (70%).
+
+**The seasonal test.** Winter (Jan-Feb 2025 and 2026, five clear passes) and summer (Jun-Aug 2026, six passes) NDVI medians on the same 10 m grid. Deciduous likelihood = (1 − winter/summer) / 0.25, clipped to 0..1, with pixels of summer NDVI ≤ 0.50 set to 0; a pixel needs 0.10 or more to be called turning or peak. By label, the median winter/summer ratio was 1.01 for peak cells, 1.05 turning, 1.11 green deciduous, 1.15 conifer, 1.19 lawn and 1.28 built; the AUC of the ratio for colour cells against conifer, lawn and built was 0.69 to 0.71, against 0.52 to 0.58 for every autumn-only feature in the first analysis. Lawns are greener in January than in a dry Seattle September, which is why a winter-versus-September ratio (tried first) did not work and a winter-versus-summer ratio does.
+
+**Why not a canopy layer.** The City of Seattle tree canopy data was the first choice but stops at the city limit, so it could not be scored here, and its host (services.arcgis.com, data-seattlecitygis.opendata.arcgis.com) is not reachable from the build environment. The 1 m canopy-height map from Meta and WRI (imagery-derived, on AWS Open Data) was tried instead and rejected: over this site it captures only a fraction of the residential crowns the drone image shows (`meta_canopy_vs_drone.png`; correlation with drone vegetation 0.32; cells whose crown fills most of the square have a median canopy fraction of 0.04 in it).
+
+**Cost.** Recall halves. The cells lost are partial crowns sharing a 10 m square with winter-green lawn and shrubs; at 10 m those look evergreen. Five of the 18 full-crown colour cells have a winter/summer ratio above 1 and are missed for the same reason or because of label noise. Most remaining false positives are pixels with no clear winter or summer pass, which fall back to the history.

@@ -35,7 +35,9 @@ def hue_chroma(r, g, b):
     return h.astype(np.float32), ((mx - mn) / (mx + 1e-6)).astype(np.float32)
 
 INDEX_NAMES = ["ndvi", "psri", "cire", "ndmi", "hue", "chroma", "r", "g", "b"]
-TEMPORAL_BLUE_LIFT = 0.04   # blue reflectance rise over a pixel's own September baseline that marks residual cloud or haze
+TEMPORAL_BLUE_LIFT = 0.04
+DECID_MIN = 0.1          # deciduous likelihood a pixel needs before it can be called turning or peak
+SEASON_SUMMER_MIN = 0.5  # summer NDVI below this is not a closed canopy; the seasonal test is not applied   # blue reflectance rise over a pixel's own September baseline that marks residual cloud or haze
 
 def indices(bands, valid):
     """Return dict of float32 arrays (NaN where invalid)."""
@@ -171,6 +173,35 @@ def composite(stackdir, out_path, mode):
     np.savez_compressed(out_path, **out)
     print("wrote", out_path)
 
+def season(name, outdir):
+    """Winter (Jan-Feb) and summer (Jun-Aug) NDVI medians for the deciduous test.
+    Deciduous canopy loses most of its NDVI in winter; conifers, winter-green lawns and shrubs do not."""
+    out = {}
+    for tag in ("winter", "summer"):
+        files = sorted(glob.glob(os.path.join(CACHE, f"s2_{tag}_{name}", "*.npz")))
+        acc = []
+        for f in files:
+            z = np.load(f); v = z["valid"]
+            if v.sum() == 0:
+                continue
+            acc.append(indices(z["bands"], v)["ndvi"])
+        with np.errstate(all="ignore"):
+            out[f"{tag}_ndvi"] = fast_nanmedian(np.stack(acc)) if acc else None
+        out[f"{tag}_dates"] = np.array([os.path.basename(f)[:10] for f in files])
+        print(f"  {tag}: {len(acc)} passes, coverage {np.isfinite(out[f'{tag}_ndvi']).mean():.3f}" if acc else f"  {tag}: no passes", flush=True)
+    path = os.path.join(outdir, f"season_{name}.npz")
+    np.savez_compressed(path, **{k: v for k, v in out.items() if v is not None})
+    print("wrote", path)
+
+def seasonal_deciduous(wn, sm):
+    """0..1 deciduous likelihood from the winter/summer NDVI ratio: 1.0 -> 0, 0.75 or less -> 1. NaN where untestable."""
+    with np.errstate(all="ignore"):
+        ratio = wn / sm
+        d = np.clip((1.0 - ratio) / 0.25, 0, 1)
+        # a pixel that is not green canopy in midsummer (lawn, roof edge, bare ground) cannot hold a turning crown: 0, not untested
+        d = np.where(np.isfinite(sm) & (sm <= SEASON_SUMMER_MIN), 0.0, d)
+        return np.where(np.isfinite(sm) & np.isfinite(wn), d, np.nan).astype(np.float32)
+
 # ----------------------------------------------------------------------------- colour score
 def colour_score(hue, chroma, psri, ndvi, hue0, psri0):
     """0..1 'how much fall colour' relative to a green baseline (hue0/psri0)."""
@@ -298,16 +329,26 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
         dndvi = now["ndvi"] - ndvi0; dhue = hue0 - now["hue"]; dpsri = now["psri"] - psri0
     # deciduous likelihood: prior-year amplitude / NDVI drop, boosted by this year's change
     decid = np.maximum(np.clip((amp - 0.12) / 0.35, 0, 1), np.clip((drop - 0.12) / 0.3, 0, 1))
-    decid = np.where(cs_now > 0.35, np.maximum(decid, 0.8), decid)
+    # seasonal test (winter/summer NDVI ratio from this grid's own passes) replaces the coarse history wherever it exists.
+    # Measured against the Shoreline drone labels, the 80 m history separates deciduous crowns from conifers no better
+    # than chance, while the seasonal ratio lifts turning/peak precision from about 32% to about 70%.
+    season_path = os.path.join(outdir, f"season_{name}.npz"); season_cov = 0.0
+    if os.path.exists(season_path):
+        sz = np.load(season_path)
+        if "winter_ndvi" in sz.files and "summer_ndvi" in sz.files:
+            d_season = seasonal_deciduous(sz["winter_ndvi"], sz["summer_ndvi"])
+            decid = np.where(np.isfinite(d_season), d_season, decid)
+            season_cov = float(np.isfinite(d_season)[veg].mean()) if veg.any() else 0.0
+            print(f"  seasonal deciduous test covers {season_cov:.1%} of vegetation", flush=True)
     decid = np.where(veg, decid, 0).astype(np.float32)
+    deciduous = veg & (decid >= DECID_MIN)
     # stage
     stage = np.zeros((H, W), np.uint8)
     ok = veg & np.isfinite(cs_now)
     stage[ok] = 1
-    stage[ok & (cs_now >= 0.15)] = 2
-    stage[ok & (cs_now >= 0.45) & (now["ndvi"] >= 0.3)] = 3
-    stage[ok & (dndvi <= -0.3) & (now["ndvi"] < 0.35)] = 4
-    stage[veg & (decid < 0.25) & (cs_now < 0.15)] = 1
+    stage[ok & deciduous & (cs_now >= 0.15)] = 2
+    stage[ok & deciduous & (cs_now >= 0.45) & (now["ndvi"] >= 0.3)] = 3
+    stage[ok & deciduous & (dndvi <= -0.3) & (now["ndvi"] < 0.35)] = 4
 
     # -- phenology: phase offset and days to peak
     this_doy = TODAY.timetuple().tm_yday
@@ -336,7 +377,7 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
     elev_adj = np.clip((dem - 50) / 1000.0 * 6.5, 0, 12)     # colder with elevation (deg C)
     cold_px = cold + np.where(elev_adj > 3, 2, np.where(elev_adj > 1.5, 1, 0))
     days_to_peak = days_to_peak - np.clip(0.5 * cold_px, 0, 4)
-    days_to_peak = np.where(veg & (decid > 0.25), days_to_peak, np.nan).astype(np.float32)
+    days_to_peak = np.where(deciduous, days_to_peak, np.nan).astype(np.float32)
     k_sm = 7 if res == 10 else 5
     num = ndimage.uniform_filter(np.nan_to_num(days_to_peak), k_sm); den = ndimage.uniform_filter(np.isfinite(days_to_peak).astype(np.float32), k_sm)
     with np.errstate(all="ignore"):
@@ -370,14 +411,14 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
         st_pred = np.zeros((H, W), np.uint8)
         okp = veg & np.isfinite(cs_now)
         st_pred[okp] = 1
-        st_pred[okp & (cs_pred >= 0.15) & (decid >= 0.25)] = 2
-        st_pred[okp & (cs_pred >= 0.45) & (decid >= 0.25)] = 3
-        past = okp & (decid >= 0.25) & ((clim_doy > peak_doy + 12) | (stage == 4))
+        st_pred[okp & deciduous & (cs_pred >= 0.15)] = 2
+        st_pred[okp & deciduous & (cs_pred >= 0.45)] = 3
+        past = okp & deciduous & ((clim_doy > peak_doy + 12) | (stage == 4))
         st_pred[past] = 4
         forecast[lab] = dict(cs=np.where(okp, cs_pred, np.nan).astype(np.float32), stage=st_pred, start=str(a0), end=str(a1))
     # -- timing classes (chronological, read left to right): 1 past, 2 now, 3 next 2 wk, 4 2-4 wk, 5 later
     timing = np.zeros((H, W), np.uint8)
-    tv = veg & (decid >= 0.25) & np.isfinite(days_to_peak)
+    tv = deciduous & np.isfinite(days_to_peak)
     d = np.nan_to_num(days_to_peak, nan=99)
     timing[tv & (d < -5)] = 1; timing[tv & (d >= -5) & (d <= 4)] = 2; timing[tv & (d > 4) & (d <= 18)] = 3
     timing[tv & (d > 18) & (d <= 32)] = 4; timing[tv & (d > 32)] = 5
@@ -386,20 +427,21 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
     # -- save rasters
     def q8(a, lo, hi):
         return np.where(np.isfinite(a), np.clip((a - lo) / (hi - lo) * 254 + 1, 1, 255), 0).astype(np.uint8)
+    show = lambda a: np.where(deciduous, a, np.nan)   # colour layers are drawn only where the pixel passed the deciduous test
     out = dict(transform=np.array(T), res=res, bins=np.array(list(weekly)), veg=veg, stage=stage,
-               cs_now=q8(cs_now, 0, 1), dhue=q8(dhue, -10, 60), dndvi=q8(dndvi, -0.6, 0.2), dpsri=q8(dpsri, -0.1, 0.4),
+               cs_now=q8(show(cs_now), 0, 1), dhue=q8(dhue, -10, 60), dndvi=q8(dndvi, -0.6, 0.2), dpsri=q8(dpsri, -0.1, 0.4),
                velocity=q8(z["velocity_psri"] * 7, -0.05, 0.15), days_to_peak=q8(days_to_peak, -21, 35),
                decid=q8(decid, 0, 1), obs_doy=now_doy, confidence=q8(conf, 0, 1), dem=dem.astype(np.float32),
                nobs_total=z["nobs_total"], latest_doy_max=int(now_doy.max()), sea_mask=sea, kc_mask=kc, landcover=lc)
     out["timing"] = timing
     out["fc_bins"] = np.array([f"{lab}|{v['start']}|{v['end']}" for lab, v in forecast.items()])
     for lab, v in forecast.items():
-        out[f"fc|{lab}|cs"] = q8(v["cs"], 0, 1); out[f"fc|{lab}|stage"] = v["stage"]
+        out[f"fc|{lab}|cs"] = q8(show(v["cs"]), 0, 1); out[f"fc|{lab}|stage"] = v["stage"]
     for lab, wk in weekly.items():
-        out[f"wk|{lab}|cs"] = q8(wk["cs"], 0, 1); out[f"wk|{lab}|nobs"] = wk["nobs"]
+        out[f"wk|{lab}|cs"] = q8(show(wk["cs"]), 0, 1); out[f"wk|{lab}|nobs"] = wk["nobs"]
         st = np.zeros((H, W), np.uint8); okw = veg & np.isfinite(wk["cs"])
-        st[okw] = 1; st[okw & (wk["cs"] >= 0.15)] = 2; st[okw & (wk["cs"] >= 0.45) & (wk["ndvi"] >= 0.3)] = 3
-        st[okw & ((wk["ndvi"] - ndvi0) <= -0.3) & (wk["ndvi"] < 0.35)] = 4
+        st[okw] = 1; st[okw & deciduous & (wk["cs"] >= 0.15)] = 2; st[okw & deciduous & (wk["cs"] >= 0.45) & (wk["ndvi"] >= 0.3)] = 3
+        st[okw & deciduous & ((wk["ndvi"] - ndvi0) <= -0.3) & (wk["ndvi"] < 0.35)] = 4
         out[f"wk|{lab}|stage"] = st
         rgb = np.stack([wk["r"], wk["g"], wk["b"]])
         with np.errstate(all="ignore"):
@@ -407,12 +449,13 @@ def region(name, stackdir, comp_path, pheno_path, outdir):
     np.savez_compressed(os.path.join(outdir, f"analysis_{name}.npz"), **out)
 
     # -- stats
-    vv = veg & (decid > 0.25)
+    vv = deciduous
     used = now_doy[veg & np.isfinite(cs_now) & (now_doy > 0)]
     oldest = int(np.percentile(used, 2)) if used.size else int(now_doy.max())
     summary = dict(region=name, today=str(TODAY), latest_obs=str(dt.date(TODAY.year, 1, 1) + dt.timedelta(int(now_doy.max()) - 1)),
                    now_oldest_obs=str(dt.date(TODAY.year, 1, 1) + dt.timedelta(oldest - 1)),
                    coverage_latest_week=float(np.isfinite(weekly[list(weekly)[-1]]["cs"])[veg].mean()),
+                   deciduous_test_coverage=season_cov, deciduous_fraction_of_vegetation=float(deciduous[veg].mean()) if veg.any() else 0.0,
                    stage_fraction={STAGE_NAMES[i]: float((stage[vv] == i).mean()) for i in range(1, 5)},
                    median_days_to_peak=float(np.nanmedian(days_to_peak[vv])),
                    forecast_cold_nights=cold, forecast_max_gust_ms=gust, forecast_max_rain_mm=rain, leafdrop_risk=leafdrop_risk,
@@ -440,7 +483,7 @@ def clusters(name, outdir, T, res, veg, decid, cs_now, stage, dtp, vel, dem, par
     def block(a, fn):
         a = a[:Hc * k, :Wc * k].reshape(Hc, k, Wc, k)
         return fn(a)
-    vv = (veg & (decid > 0.25)).astype(np.float32)
+    vv = (veg & (decid >= DECID_MIN)).astype(np.float32)
     nveg = block(vv, lambda a: a.sum(axis=(1, 3)))
     csw = np.where(vv > 0, np.nan_to_num(cs_now), 0)
     cs_cell = block(csw, lambda a: a.sum(axis=(1, 3))) / np.maximum(nveg, 1)
@@ -572,3 +615,5 @@ if __name__ == "__main__":
         phenology(sys.argv[2], sys.argv[3:])
     elif cmd == "region":
         region(*sys.argv[2:7])
+    elif cmd == "season":
+        season(sys.argv[2], sys.argv[3])

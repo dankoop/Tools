@@ -37,6 +37,13 @@ docs/                the static site (GitHub Pages: Settings -> Pages -> main /d
   loss; NDMI for leaf-off. The colour score blends hue shift and PSRI rise against each pixel's
   own early-September baseline, scaled down once NDVI shows the leaves are gone. Stages
   (green / turning / peak / past peak) are thresholds on that score and on the NDVI drop.
+* **Deciduous test.** A pixel can be called turning or peak only if it is deciduous: its winter
+  (Jan-Feb) NDVI must fall below about 0.98 of its summer (Jun-Aug) NDVI, measured from the same
+  archive on the same grid. Conifers and winter-green lawns stay near or above 1; pixels that are
+  not green canopy in midsummer score zero. Where no clear winter or summer pass exists the
+  2023-25 autumn history is the fallback. Against the Shoreline drone labels this lifted
+  turning/peak precision from 32% to 50% and cut conifer false positives from 32 to 4 of the
+  flagged cells, at the cost of half the recall (partial crowns in winter-green pixels).
 * **Phenology.** Autumn 2023-2025 processed the same way at 80 m gives each pixel a typical
   colour curve, peak week and amplitude (small amplitude = evergreen). This year's progress is
   matched to that curve to get a phase offset and a predicted peak date, pulled earlier when
@@ -72,6 +79,14 @@ python fetch_weather.py $FALLCOLOR_CACHE/weather 20260915 $(date +%Y%m%d)
 #   (GHCN: stream csv/by_year/<year>.csv from the noaa-ghcn-pds bucket filtered to King County station ids
 #    into $FALLCOLOR_CACHE/weather/ghcn_kc_<year>.csv; see prep_ancillary.py)
 python prep_ancillary.py
+# winter and summer passes for the deciduous test (once a year)
+python inventory.py $FALLCOLOR_CACHE/scenes_winter.json 2026 1 2      # plus the previous January
+python inventory.py $FALLCOLOR_CACHE/scenes_summer.json 2026 6 7 8
+for r in seattle county; do
+  python ingest_s2.py $r $FALLCOLOR_CACHE/scenes_winter.json $FALLCOLOR_CACHE/s2_winter_$r --min-date 2025-01-01 --max-cloud 20
+  python ingest_s2.py $r $FALLCOLOR_CACHE/scenes_summer.json $FALLCOLOR_CACHE/s2_summer_$r --min-date 2026-06-01 --max-cloud 10
+  python analyze.py season $r $FALLCOLOR_CACHE/out
+done
 # analysis, rendering, site
 for r in seattle county; do
   python analyze.py composite $FALLCOLOR_CACHE/s2_$r $FALLCOLOR_CACHE/out/comp_$r.npz current
