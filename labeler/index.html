@@ -1,0 +1,106 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shoreline Canopy Labels</title>
+<meta name="description" content="Label what fills each 10 m cell in the Oct 11 drone orthoimage of southern Shoreline, to validate the satellite fall-colour layer.">
+<style>
+/* Layout: one chip at a time, big, with a single row of answer buttons under it. Neutral chrome; stage colours only on the answer chips that mean colour. */
+:root{--bg:#f4f3ef;--panel:#fbfaf7;--panel-2:#edebe5;--fg:#1b1a18;--muted:#66625b;--line:#d6d2c9;--ink:#2a2824;--ink-fg:#fbfaf7;--c1:#1a8026;--c2:#f2d91a;--c3:#fa8c0d;--c5:#785540;--body:"Source Sans 3",system-ui,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151617;--panel:#1e2022;--panel-2:#2a2d30;--fg:#ebe8e1;--muted:#a19c93;--line:#3b3f44;--ink:#ebe8e1;--ink-fg:#151617;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#151617;--panel:#1e2022;--panel-2:#2a2d30;--fg:#ebe8e1;--muted:#a19c93;--line:#3b3f44;--ink:#ebe8e1;--ink-fg:#151617;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.4;margin:0}
+.wrap{max-width:560px;margin:0 auto;padding-block:12px;padding-inline:16px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13.5px;margin:0 0 10px}
+.prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:6px 0 10px}.prog i{display:block;height:100%;background:var(--ink)}
+.chip{position:relative;width:100%;aspect-ratio:1;max-width:100%;background:#111;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.chip img{width:100%;height:100%;display:block;object-fit:cover}
+.chip .id{position:absolute;left:8px;bottom:6px;color:#fff;font-size:12px;text-shadow:0 0 3px #000}
+.q{font-weight:600;margin:12px 0 6px}
+.ans{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ans button{padding:12px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);font:inherit;color:inherit;cursor:pointer;text-align:left;display:flex;align-items:center;gap:9px;line-height:1.2}
+.ans button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.ans button[aria-pressed=true]{background:var(--ink);color:var(--ink-fg);border-color:var(--ink)}
+.ans i{width:14px;height:14px;border-radius:4px;display:inline-block;flex:none;border:1px solid rgba(0,0,0,.25)}
+.ans small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.ans button[aria-pressed=true] small{color:var(--ink-fg);opacity:.8}
+.ans .key{margin-left:auto;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.btn{padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font:inherit;color:inherit;cursor:pointer}
+.btn[disabled]{opacity:.45;cursor:default}
+.btn.primary{background:var(--ink);color:var(--ink-fg);border-color:var(--ink);font-weight:600}
+.note{padding:8px 10px;border-left:3px solid var(--ink);background:var(--panel-2);border-radius:0 8px 8px 0;font-size:13.5px;margin:10px 0}
+.muted{color:var(--muted)}
+details summary{cursor:pointer;font-weight:600;margin:8px 0 4px}
+details p,details li{font-size:14px;max-width:65ch}
+.done{text-align:center;padding:30px 10px}
+.done b{font-size:22px;display:block}
+</style>
+<div class="wrap">
+  <h1>Shoreline canopy labels</h1>
+  <p class="sub">What fills the white square? One tap per cell. Each square is 10 m on a side in your Oct 11 drone image; the view around it is 30 m.</p>
+  <div class="prog"><i id="bar" style="width:0%"></i></div>
+  <div id="status" class="muted" style="font-size:13px">Loading…</div>
+  <div id="card" hidden>
+    <div class="chip"><img id="img" alt="Drone image chip with the 10 m cell outlined"><span class="id" id="cid"></span></div>
+    <div class="q">Inside the white square, mostly:</div>
+    <div class="ans" id="ans">
+      <button data-l="peak"><i style="background:var(--c3)"></i><span>Peak colour<small>deciduous tree, most of the crown orange, red or yellow</small></span><span class="key">1</span></button>
+      <button data-l="turning"><i style="background:var(--c2)"></i><span>Turning<small>deciduous tree, some yellow or orange in the crown</small></span><span class="key">2</span></button>
+      <button data-l="green_decid"><i style="background:var(--c1)"></i><span>Green deciduous<small>broadleaf tree, no colour yet</small></span><span class="key">3</span></button>
+      <button data-l="conifer"><i style="background:#2f4a33"></i><span>Conifer / evergreen<small>fir, cedar, hemlock, holly, laurel</small></span><span class="key">4</span></button>
+      <button data-l="lawn"><i style="background:#9bb36a"></i><span>Lawn / field / shrubs<small>grass, groundcover, low beds</small></span><span class="key">5</span></button>
+      <button data-l="built"><i style="background:#8a8a8a"></i><span>Built / bare<small>roof, road, parking, cars, soil</small></span><span class="key">6</span></button>
+    </div>
+    <div class="q" style="margin-top:12px">If there is a deciduous tree, how much of the square does its crown cover?</div>
+    <div class="ans" id="cov" style="grid-template-columns:repeat(4,1fr)">
+      <button data-c="edge">Edge only<span class="key">q</span></button><button data-c="part">Under half<span class="key">w</span></button><button data-c="most">Over half<span class="key">e</span></button><button data-c="na">No tree<span class="key">r</span></button>
+    </div>
+    <div class="row">
+      <button class="btn" id="back">← Back</button>
+      <button class="btn" id="skip">Skip</button>
+      <span class="spacer" style="flex:1"></span>
+      <button class="btn primary" id="next" disabled>Save and next →</button>
+    </div>
+    <p class="muted" style="font-size:12.5px">Tip: tapping a stage saves and advances when a cover answer is already chosen; keys 1-6 and q-r work on a keyboard. Mixed cell? Pick whatever covers most of the square; use the cover question for the tree share.</p>
+  </div>
+  <div id="done" class="done" hidden><b>All cells labelled</b><span class="muted">Thank you. Nothing else to do here; the analysis reads these labels directly.</span></div>
+  <details><summary>Why these labels, and what happens with them</summary>
+    <p>Each cell is one 10 m satellite pixel. The fall-colour map decides, per pixel, whether there is a deciduous tree and how far its colour has turned. Your labels are the reference the map is scored against: half are used to retune the colour rules, the other half to report the map's precision and recall. Labels are stored per cell with your account id and a timestamp; the map's own prediction for each cell is deliberately hidden here.</p>
+    <p>Conventions: a conifer with a deciduous tree at the edge is "Conifer" with cover "Edge only". A lawn with a single small ornamental is "Lawn". Brown or bare crowns count as deciduous turning if leaves remain, "Built / bare" if the crown is empty.</p>
+  </details>
+</div>
+<script>
+(async function(){
+const $=s=>document.querySelector(s);
+const cells=await fetch('cells.json').then(r=>r.json()).catch(()=>null);
+if(!cells){ $('#status').textContent='Could not load the cell list.'; return; }
+let labels={}; const db=await window.claude?.use?.('db'); const user=await window.claude?.use?.('user'); const uid=user?await user.id():null;
+const col=db?db.collection('labels'):null;
+if(col){ try{ const snap=await col.get(); snap.docs.forEach(d=>{labels[d.id]=d.data()}); }catch(e){ $('#status').textContent='Labels could not be read ('+e.code+'); your answers will not be saved.'; } }
+else { $('#status').textContent='Saving is unavailable in this view (open the page signed in as the owner). You can still look, but answers are not kept.'; }
+let i=0; const order=cells.map(c=>c.id); let cur={l:null,c:null};
+function firstUnlabelled(){ const k=order.findIndex(id=>!labels[id]||labels[id].skipped); return k<0?order.length:k; }
+i=firstUnlabelled();
+function paint(){
+  const n=order.length, done=order.filter(id=>labels[id]&&!labels[id].skipped).length; $('#bar').style.width=(100*done/n)+'%';
+  if(i>=n){ $('#card').hidden=true; $('#done').hidden=false; $('#status').textContent=`${done} of ${n} labelled`; return; }
+  $('#card').hidden=false; $('#done').hidden=true; const id=order[i]; $('#img').src=`chips/${id}.webp`; $('#cid').textContent=id; const ex=labels[id]||{}; cur={l:ex.label||null,c:ex.cover||null};
+  $('#status').textContent=`Cell ${i+1} of ${n} · ${done} labelled${ex.label?' · already labelled, you can change it':''}`;
+  document.querySelectorAll('#ans button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.l===cur.l))); document.querySelectorAll('#cov button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.c===cur.c)));
+  $('#next').disabled=!(cur.l&&cur.c); $('#back').disabled=i===0;
+  const nxt=order[i+1]; if(nxt){ const im=new Image(); im.src=`chips/${nxt}.webp`; }
+}
+async function save(skip){
+  const id=order[i]; const rec=skip?{skipped:true,labeller:uid,ts:new Date().toISOString()}:{label:cur.l,cover:cur.c,labeller:uid,ts:new Date().toISOString(),skipped:false};
+  labels[id]=rec;
+  if(col){ try{ await col.doc(id).set(rec); }catch(e){ $('#status').textContent='Save failed ('+e.code+'). Check you are signed in as the owner.'; return; } }
+  i++; paint();
+}
+document.querySelectorAll('#ans button').forEach(b=>b.onclick=()=>{cur.l=b.dataset.l; if(['lawn','built','conifer'].includes(cur.l)&&!cur.c) cur.c='na'; paint2(); if(cur.c) save(false);});
+document.querySelectorAll('#cov button').forEach(b=>b.onclick=()=>{cur.c=b.dataset.c; paint2(); if(cur.l) save(false);});
+function paint2(){ document.querySelectorAll('#ans button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.l===cur.l))); document.querySelectorAll('#cov button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.c===cur.c))); $('#next').disabled=!(cur.l&&cur.c); }
+$('#next').onclick=()=>save(false); $('#skip').onclick=()=>save(true); $('#back').onclick=()=>{ if(i>0){i--; paint();} };
+addEventListener('keydown',e=>{ const m={'1':'peak','2':'turning','3':'green_decid','4':'conifer','5':'lawn','6':'built'}; const c={'q':'edge','w':'part','e':'most','r':'na'}; if(m[e.key]) document.querySelector(`#ans button[data-l="${m[e.key]}"]`).click(); else if(c[e.key]) document.querySelector(`#cov button[data-c="${c[e.key]}"]`).click(); else if(e.key==='Backspace') $('#back').click(); });
+paint();
+})();
+</script>
