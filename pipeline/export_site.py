@@ -51,12 +51,40 @@ def main(outdir, docs):
         p = os.path.join(outdir, f"summary_{region}.json")
         if os.path.exists(p):
             site["summary"][region] = clean(json.load(open(p)))
-    # one ranking across both regions
+    # one ranking across both regions, then one merged places list: a destination that sits
+    # inside a hotspot absorbs it (keeps the destination's name and footprint stats, takes the
+    # hotspot's outline and area); the rest stay as hotspots or standalone destinations.
     for prod, out_name in (("clusters", "hotspots.geojson"), ("destinations", "destinations.geojson")):
         feats = sorted(merged.get(prod, []), key=lambda f: -f["properties"]["visit_score"])
         for r, f in enumerate(feats, 1):
             f["properties"]["rank"] = r
         dump(dict(type="FeatureCollection", features=feats), os.path.join(data, out_name))
+    from shapely.geometry import Point
+    hots = [dict(f) for f in merged.get("clusters", [])]; hot_geoms = [shape(f["geometry"]) for f in hots]
+    places = []; used = set()
+    for d in merged.get("destinations", []):
+        p = dict(d["properties"]); pt = Point(d["geometry"]["coordinates"]); host = None
+        for i, g in enumerate(hot_geoms):
+            if i not in used and g.distance(pt) < 0.002:
+                host = i; break
+        p.update(type="destination", label=p["name"], lon=pt.x, lat=pt.y)
+        geom = d["geometry"]
+        if host is not None:
+            used.add(host); hp = hots[host]["properties"]
+            p.update(area_ha=hp["area_ha"], hotspot_rank=hp["rank"], peak_fraction=max(p.get("peak_fraction", 0), hp["peak_fraction"]), velocity_wk=hp.get("velocity_wk"))
+            geom = hots[host]["geometry"]
+        places.append(dict(type="Feature", geometry=geom, properties=p))
+    for i, h in enumerate(hots):
+        if i in used: continue
+        p = dict(h["properties"]); p.update(type="hotspot", name=p["label"], notes="")
+        places.append(dict(type="Feature", geometry=h["geometry"], properties=p))
+    places.sort(key=lambda f: -f["properties"]["visit_score"])
+    for r, f in enumerate(places, 1):
+        f["properties"]["rank"] = r
+    dump(dict(type="FeatureCollection", features=places), os.path.join(data, "places.geojson"))
+    rp = os.path.join(outdir, "regions.geojson")
+    if os.path.exists(rp):
+        dump(json.load(open(rp)), os.path.join(data, "regions.geojson"))
     for stale in glob_files(data, ("clusters_", "destinations_")):
         os.remove(stale)
     # weather: stations as GeoJSON + forecast + recent
