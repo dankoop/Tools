@@ -115,6 +115,40 @@ td.n,th.n{text-align:right}
 .stat span{font-size:12px;color:var(--muted)}
 .note{padding:8px 10px;border-left:3px solid var(--ink);background:var(--panel-2);border-radius:0 8px 8px 0;font-size:14px;margin:8px 0}
 .about p,.about li{max-width:65ch}
+.mtoolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:6px 0 10px}
+.mnav{display:flex;gap:4px;flex-wrap:wrap}
+.mnav a{font-size:12px;padding:2px 8px;border:1px solid var(--line);border-radius:999px;text-decoration:none;color:var(--muted)}
+.mnav a:hover{color:var(--fg);border-color:var(--ink)}
+.mtools{display:flex;gap:6px}.mtools .btn{padding:3px 9px;font-size:12px}
+.mintro{max-width:65ch;margin:0 0 10px}
+.msec{border:1px solid var(--line);border-radius:10px;margin:0 0 8px;background:var(--panel-2)}
+.msec[open]{background:var(--panel)}
+.msec.pinned{border-color:var(--ink)}
+.msec>summary{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;list-style:none;font-weight:600}
+.msec>summary::-webkit-details-marker{display:none}
+.msec>summary::before{content:"▸";color:var(--muted);font-weight:400;width:10px}
+.msec[open]>summary::before{content:"▾"}
+.mnum{font-family:var(--display);color:var(--muted);font-weight:600;min-width:18px}
+.mtitle{flex:1;min-width:0}
+.mpin{border:1px solid var(--line);background:transparent;border-radius:6px;width:28px;height:26px;cursor:pointer;color:var(--muted);font-size:15px;line-height:1}
+.msec.pinned .mpin{background:var(--ink);color:var(--ink-fg);border-color:var(--ink)}
+.mbody{padding:0 12px 12px}
+.mbody p,.mbody li{max-width:65ch}
+.mbody ol,.mbody ul{padding-left:20px}
+.mbody h4{margin:10px 0 4px;font-size:14px}
+.mnote{padding:8px 10px;border-left:3px solid var(--ink);background:var(--panel-2);border-radius:0 8px 8px 0;font-size:13.5px;margin:10px 0}
+.mcode{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;overflow-x:auto;line-height:1.45}
+.mfig{margin:12px 0}
+.mfig figcaption{font-size:13px;color:var(--muted);margin-top:6px;max-width:65ch}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:6px}
+.mgrid.two{grid-template-columns:repeat(2,1fr)}.mgrid.three{grid-template-columns:repeat(3,1fr)}
+.mgrid figure{margin:0}.mgrid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block;image-rendering:auto}
+.mgrid .lbl{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;justify-content:space-between;gap:6px}
+.mchart svg{width:100%;height:auto;display:block}
+.mchart text{font-family:var(--body);font-size:10px;fill:var(--muted)}
+.mchart .ax{stroke:var(--line);stroke-width:1}
+.mchart .grid{stroke:var(--line);stroke-width:.6;stroke-dasharray:2 3}
+.mchart .lg{font-size:10.5px;fill:var(--fg)}
 details summary{cursor:pointer;font-weight:600;margin:6px 0}
 .leaflet-popup-content-wrapper{background:var(--panel);color:var(--fg);border-radius:10px;border:1px solid var(--line);box-shadow:0 4px 20px rgba(0,0,0,.3)}
 .leaflet-popup-tip{background:var(--panel)}
@@ -1086,7 +1120,9 @@ verdict();
 
 // ---------------------------------------------------------------- sheet
 const body=$('#sheet-body'); let tab=store.get('tab')||'hot', filt={scope:'all',kind:'all',size:'all'};
-document.querySelectorAll('.tab').forEach(t=>{t.setAttribute('aria-selected',String(t.dataset.tab===tab));t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));t.setAttribute('aria-selected','true');tab=t.dataset.tab;store.set('tab',tab);render();$('#sheet').classList.remove('collapsed')}});
+function sheetFor(tab){ if(desktop()) return; document.documentElement.style.setProperty('--sheet',tab==='about'?'78vh':'36vh'); }
+document.querySelectorAll('.tab').forEach(t=>{t.setAttribute('aria-selected',String(t.dataset.tab===tab));t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));t.setAttribute('aria-selected','true');tab=t.dataset.tab;store.set('tab',tab);sheetFor(tab);render();$('#sheet').classList.remove('collapsed')}});
+sheetFor(tab);
 $('#grip').onclick=()=>$('#sheet').classList.toggle('collapsed');
 function flyTo(l,latlng){ if(!desktop()) $('#sheet').classList.add('collapsed'); map.flyTo(latlng,Math.max(map.getZoom(),13),{duration:.8}); setTimeout(()=>l.openPopup(),900) }
 function row(p,i,extra){return `<button class="item" data-i="${i}"><span class="rank">${p.rank}</span><span class="name">${p.label||p.name}</span><span class="right">${spark(p.series,72,20,p.forecast)}${scoreBar(p.visit_score)}</span><span class="sub">${stagePill(p)}<span>${timingShort(p.days_to_peak)}</span>${extra||''}</span></button>`}
@@ -1114,6 +1150,8 @@ function render(){
     const fs=reports.features.slice().sort((a,b)=>b.properties.date.localeCompare(a.properties.date));
     body.innerHTML=`<p class="muted" style="margin:4px 0 8px">Dated reports gathered ${reports.retrieved}. <i>observation</i> = someone saw it; <i>outlook</i> = a forecast; <i>model</i> = a latitude/elevation estimate, not a sighting.</p><div class="list">${fs.map((f,i)=>{const p=f.properties;return `<button class="item" data-i="${i}" style="grid-template-columns:1fr auto"><span class="name">${p.place}</span><span class="muted" style="font-size:13px">${p.date.slice(5)}</span><span class="sub" style="grid-column:1/3;display:block;white-space:normal"><span class="tag">${p.kind}</span> ${p.summary} <a href="${p.url}" target="_blank" rel="noopener">${p.source} ↗</a></span></button>`}).join('')}</div>`;
     body.querySelectorAll('.item').forEach(b=>b.onclick=e=>{if(e.target.tagName==='A')return;const f=fs[+b.dataset.i];$('#chk-reports').checked=true;reportLayer.addTo(map);const target=reportMarkers.find(m=>m._p===f.properties);if(target)flyTo(target,target.getLatLng())});
+  } else if(tab==='about'){
+    renderMethod(); return;
   } else {
     const sf=sumS.stage_fraction||{}, cf=sumC.stage_fraction||{};
     body.innerHTML=`<div class="about"><div class="stat"><div><b>${Math.round((sf.turning||0)*100)}% / ${Math.round((cf.turning||0)*100)}%</b><span>deciduous trees turning, Seattle / county</span></div><div><b>${Math.round((sf.peak||0)*100)}% / ${Math.round((cf.peak||0)*100)}%</b><span>at peak colour, Seattle / county</span></div><div><b>${sumS.median_days_to_peak!=null?dstr(new Date(today.getTime()+sumS.median_days_to_peak*864e5)):'–'}</b><span>median predicted peak, Seattle</span></div><div><b>${dstr(isoDate(summary.latest_obs))}</b><span>latest clear observation</span></div></div>
@@ -1130,6 +1168,85 @@ function render(){
     <p><b>Limits.</b> A 10 m pixel mixes several trees; street trees under cloud for two weeks show their last clear state; the phenology baseline is coarse, so timing is a guide. Reports are quoted from and linked to their sources.</p>
     <p class="muted">Generated ${site.generated}. Pipeline code: the <code>pipeline/</code> folder of this repository.</p></div>`;
   }
+}
+// ---------------------------------------------------------------- Method tab: documentation with a worked example
+let methodHtml=null, methodData=null, pinned=new Set();
+async function renderMethod(){
+  if(!methodHtml){ try{ [methodHtml,methodData]=await Promise.all([fetch('data/method/method.html').then(r=>r.text()),fetch('data/method/method.json').then(r=>r.json())]); }catch(e){ body.innerHTML='<p class="note">The method documentation could not be loaded ('+e.message+').</p>'; return; } }
+  body.innerHTML=`<div class="about">${methodHtml}</div>`;
+  const F=methodData.figures, M='data/method/';
+  const chip=(file,label,sub)=>`<figure><img src="${M}${file}" alt="${label}" loading="lazy"><div class="lbl"><span>${label}</span>${sub?`<span>${sub}</span>`:''}</div></figure>`;
+  const fig=(k,html)=>{const el=body.querySelector(`[data-fig="${k}"]`); if(el) el.innerHTML=html};
+  fig('weeks',F.weeks.map(w=>chip(w.file,w.label,`${Math.round(w.coverage*100)}% clear`)).join(''));
+  fig('mask',chip(F.mask.raw,`Raw pass, ${dstr(isoDate(F.mask.date))}`)+chip(F.mask.masked,'After masking','magenta = removed'));
+  fig('indexmaps',['hue','psri','ndvi'].map(k=>chip(F.maps[`${k}_base`],`${k.toUpperCase()} · Sep 1-14`)).join('')+['hue','psri','ndvi'].map(k=>chip(F.maps[`${k}_now`],`${k.toUpperCase()} · now`)).join(''));
+  fig('scorestage',chip(F.maps.cs_now,'Colour score now')+chip(F.maps.stage_now,'Stage now'));
+  fig('decid',chip(F.maps.veg,'Vegetated pixels')+chip(F.maps.decid,'Deciduous likelihood'));
+  fig('cells',chip(F.maps.cs_now,'Colour score, 10 m')+chip(F.cells.file,'100 m cells'));
+  // inline values
+  const vals={'mask.masked_fraction':`${Math.round(F.mask.masked_fraction*100)}%`,
+    'idx.deciduous.hue':`${fmt(F.index_examples.deciduous.base.hue)}° → ${fmt(F.index_examples.deciduous.now.hue)}°`,'idx.conifer.hue':`${fmt(F.index_examples.conifer.base.hue)}° → ${fmt(F.index_examples.conifer.now.hue)}°`,
+    'idx.deciduous.psri':`${fmt(F.index_examples.deciduous.base.psri,2)} → ${fmt(F.index_examples.deciduous.now.psri,2)}`,'idx.conifer.psri':`${fmt(F.index_examples.conifer.base.psri,2)} → ${fmt(F.index_examples.conifer.now.psri,2)}`,
+    'idx.deciduous.ndvi':`${fmt(F.index_examples.deciduous.base.ndvi,2)} → ${fmt(F.index_examples.deciduous.now.ndvi,2)}`,'idx.conifer.ndvi':`${fmt(F.index_examples.conifer.base.ndvi,2)} → ${fmt(F.index_examples.conifer.now.ndvi,2)}`,
+    'idx.deciduous.ndmi':`${fmt(F.index_examples.deciduous.base.ndmi,2)} → ${fmt(F.index_examples.deciduous.now.ndmi,2)}`,'idx.conifer.ndmi':`${fmt(F.index_examples.conifer.base.ndmi,2)} → ${fmt(F.index_examples.conifer.now.ndmi,2)}`,
+    'stagefrac':(sf=>`${Math.round(sf.turning*100)}% of deciduous pixels are turning, ${Math.round(sf.peak*100)}% at peak and ${Math.round(sf.green*100)}% still green`)(F.stage_fraction_ref),
+    'pheno.peak':dstr(new Date(2026,0,1+Math.round(F.phenology.peak_doy_clim)-1)),
+    'wx.nights':`${F.weather.nights_le_7_2026} this year, ${F.weather.nights_le_7_2025_same_dates} by the same date in 2025`,
+    'generated':site.generated};
+  body.querySelectorAll('[data-val]').forEach(el=>{ if(vals[el.dataset.val]!=null) el.textContent=vals[el.dataset.val]; });
+  // charts
+  const ch=(k,html)=>{const el=body.querySelector(`[data-chart="${k}"]`); if(el) el.innerHTML=html};
+  ch('spectra',chartSpectra(F.spectra)); ch('phenology',chartPheno(F.phenology)); ch('weather',chartWeather(F.weather));
+  // nav, pins, expand/collapse
+  const secs=[...body.querySelectorAll('.msec')];
+  body.querySelector('.mnav').innerHTML=secs.map(d=>`<a href="#${d.id}" data-sec="${d.id}">${d.querySelector('.mnum').textContent} ${d.querySelector('.mtitle').textContent}</a>`).join('');
+  body.querySelectorAll('.mnav a').forEach(a=>a.onclick=e=>{e.preventDefault();const d=body.querySelector('#'+a.dataset.sec);d.open=true;d.scrollIntoView({behavior:'smooth',block:'start'})});
+  body.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>secs.forEach(d=>d.open=b.dataset.m==='expand'));
+  const list=secs[0].parentElement;
+  function applyPins(){ const ps=secs.filter(d=>pinned.has(d.id)); ps.reverse().forEach(d=>{d.classList.add('pinned');d.open=true;list.insertBefore(d,list.querySelector('.msec'))}); secs.forEach(d=>{if(!pinned.has(d.id))d.classList.remove('pinned')}); }
+  body.querySelectorAll('.mpin').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();const d=b.closest('.msec'); if(pinned.has(d.id)){pinned.delete(d.id); d.classList.remove('pinned'); const order=secs.filter(x=>!pinned.has(x.id)); let anchor=null; for(const x of secs){ if(x===d) break; if(!pinned.has(x.id)) anchor=x; } list.insertBefore(d, anchor?anchor.nextSibling:list.querySelector('.msec:not(.pinned)')); } else { pinned.add(d.id); applyPins(); } });
+  applyPins();
+}
+const BANDS=[['blue',490],['green',560],['red',665],['rededge1',705],['rededge2',740],['rededge3',783],['nir',842],['nir08',865],['swir16',1610],['swir22',2190]];
+function chartSpectra(S){
+  const W=320,H=196,L=34,R=10,T=14,B=56; const n=BANDS.length; const x=i=>L+i*(W-L-R)/(n-1); const ymax=0.5; const y=v=>T+(1-Math.min(v,ymax)/ymax)*(H-T-B);
+  const series=[['deciduous_sept','Deciduous, '+dstr(isoDate(S.deciduous_sept.date)),'var(--c1)',''],['deciduous_oct','Deciduous, '+dstr(isoDate(S.deciduous_oct.date)),'var(--c3)',''],['conifer_sept','Conifer, '+dstr(isoDate(S.conifer_sept.date)),'var(--muted)',''],['conifer_oct','Conifer, '+dstr(isoDate(S.conifer_oct.date)),'var(--muted)','4 3']];
+  const path=k=>BANDS.map(([b],i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(S[k].values[b]).toFixed(1)).join(' ');
+  const vis=`<rect x="${x(0)-6}" y="${T}" width="${x(2)-x(0)+12}" height="${H-T-B}" fill="var(--line)" opacity=".35"/><text x="${x(1)}" y="${T+9}" text-anchor="middle">visible</text><text x="${(x(3)+x(5))/2}" y="${T+9}" text-anchor="middle">red edge</text><text x="${(x(6)+x(7))/2}" y="${T+9}" text-anchor="middle">near-IR</text><text x="${(x(8)+x(9))/2}" y="${T+9}" text-anchor="middle">shortwave-IR</text>`;
+  const grid=[0.1,0.2,0.3,0.4].map(v=>`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-4}" y="${y(v)+3}" text-anchor="end">${v.toFixed(1)}</text>`).join('');
+  const lines=series.map(([k,lab,col,dash])=>`<path d="${path(k)}" fill="none" stroke="${col}" stroke-width="1.8" ${dash?`stroke-dasharray="${dash}"`:''}/>`).join('');
+  const dots=series.map(([k,lab,col])=>BANDS.map(([b],i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(S[k].values[b]).toFixed(1)}" r="2.2" fill="${col}"/>`).join('')).join('');
+  const xl=BANDS.map(([b,nm],i)=>`<text x="${x(i).toFixed(1)}" y="${H-B+11}" text-anchor="middle">${nm}</text>`).join('');
+  const lg=series.map(([k,lab,col,dash],i)=>{const cx=L+(i%2)*140, cy=H-16+Math.floor(i/2)*12; return `<line x1="${cx}" x2="${cx+14}" y1="${cy}" y2="${cy}" stroke="${col}" stroke-width="2" ${dash?`stroke-dasharray="${dash}"`:''}/><text class="lg" x="${cx+17}" y="${cy+3}">${lab}</text>`}).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Reflectance by band for a deciduous and a conifer pixel in September and October">${vis}${grid}<line class="ax" x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}"/>${lines}${dots}${xl}<text x="${W-R}" y="${H-B+22}" text-anchor="end">wavelength, nm</text><text x="6" y="${T+4}" transform="rotate(-90 6 ${T+4})" text-anchor="end">reflectance</text>${lg}</svg>`;
+}
+function dateOfDoy(d){return new Date(2026,0,d)}
+function chartPheno(P){
+  const W=320,H=160,L=30,R=10,T=12,B=30; const d0=P.doys[0]-6,d1=P.doys[P.doys.length-1]; const x=d=>L+(d-d0)/(d1-d0)*(W-L-R); const ymax=Math.max(0.6,...P.climatology,...P.observed.map(o=>o.value),...P.forecast.map(o=>o.value))*1.05; const y=v=>T+(1-v/ymax)*(H-T-B);
+  const clim=P.doys.map((d,i)=>(i?'L':'M')+x(d).toFixed(1)+' '+y(P.climatology[i]).toFixed(1)).join(' ');
+  const obsPts=P.observed.filter(o=>o.value!=null); const fcPts=P.forecast.filter(o=>o.value!=null);
+  const obsPath=obsPts.map((o,i)=>(i?'L':'M')+x(o.doy).toFixed(1)+' '+y(o.value).toFixed(1)).join(' ');
+  const lastO=obsPts[obsPts.length-1]; const fcPath=[lastO,...fcPts].map((o,i)=>(i?'L':'M')+x(o.doy).toFixed(1)+' '+y(o.value).toFixed(1)).join(' ');
+  const months=[[244,'Sep'],[274,'Oct'],[305,'Nov']].filter(([d])=>d>=d0&&d<=d1).map(([d,m])=>`<line class="grid" x1="${x(d)}" x2="${x(d)}" y1="${T}" y2="${H-B}"/><text x="${x(d)+3}" y="${H-B+11}">${m} 1</text>`).join('');
+  const peak=`<line x1="${x(P.peak_doy_clim)}" x2="${x(P.peak_doy_clim)}" y1="${T}" y2="${H-B}" stroke="var(--muted)" stroke-dasharray="2 2"/><text x="${x(P.peak_doy_clim)}" y="${T-2}" text-anchor="middle">typical peak</text>`;
+  const now=`<line x1="${x(lastO.doy)}" x2="${x(lastO.doy)}" y1="${T}" y2="${H-B}" stroke="var(--fg)" stroke-width="1" stroke-dasharray="3 2"/><text x="${x(lastO.doy)+3}" y="${T+9}" font-weight="600" fill="var(--fg)">now</text>`;
+  const od=obsPts.map(o=>`<circle cx="${x(o.doy).toFixed(1)}" cy="${y(o.value).toFixed(1)}" r="3.4" fill="${o.coverage<0.3?'var(--panel)':rampColor(o.value)}" stroke="${o.coverage<0.3?'var(--muted)':'var(--fg)'}" stroke-width="1"/>`).join('');
+  const fd=fcPts.map(o=>`<circle cx="${x(o.doy).toFixed(1)}" cy="${y(o.value).toFixed(1)}" r="3" fill="var(--panel)" stroke="${rampColor(o.value)}" stroke-width="1.6"/>`).join('');
+  const grid=[0.2,0.4,0.6].filter(v=>v<ymax).map(v=>`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-4}" y="${y(v)+3}" text-anchor="end">${v.toFixed(1)}</text>`).join('');
+  const lg=`<line x1="${L}" x2="${L+16}" y1="${H-5}" y2="${H-5}" stroke="var(--muted)" stroke-width="2.5"/><text class="lg" x="${L+19}" y="${H-2}">typical 2023–25</text><line x1="${L+110}" x2="${L+126}" y1="${H-5}" y2="${H-5}" stroke="var(--fg)" stroke-width="1.8"/><text class="lg" x="${L+129}" y="${H-2}">this year</text><line x1="${L+185}" x2="${L+201}" y1="${H-5}" y2="${H-5}" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="3 3"/><text class="lg" x="${L+204}" y="${H-2}">forecast</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Typical colour curve versus this year">${grid}${months}<line class="ax" x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}"/>${peak}<path d="${clim}" fill="none" stroke="var(--muted)" stroke-width="2.5" opacity=".8"/><path d="${obsPath}" fill="none" stroke="var(--fg)" stroke-width="1.8"/><path d="${fcPath}" fill="none" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="3 3"/>${now}${od}${fd}<text x="6" y="${T+4}" transform="rotate(-90 6 ${T+4})" text-anchor="end">colour score</text>${lg}</svg>`;
+}
+function chartWeather(Wx){
+  const W=320,H=150,L=30,R=10,T=12,B=30;
+  const md=s=>new Date(2026,+s.slice(0,2)-1,+s.slice(2)); const all=[...Wx.lows_2026,...Wx.lows_2025,...Wx.forecast];
+  const t0=md('0915').getTime(), t1=Math.max(...Wx.forecast.map(([d])=>md(d).getTime()),md('1030').getTime()); const x=d=>L+(md(d).getTime()-t0)/(t1-t0)*(W-L-R);
+  const vals=all.map(([,v])=>v).filter(v=>v!=null); const ymin=Math.min(-2,...vals)-1, ymax=Math.max(...vals)+1; const y=v=>T+(1-(v-ymin)/(ymax-ymin))*(H-T-B);
+  const path=arr=>arr.filter(([d])=>md(d).getTime()<=t1).map(([d,v],i)=>(i?'L':'M')+x(d).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
+  const last26=Wx.lows_2026[Wx.lows_2026.length-1]; const fc=Wx.forecast.filter(([d])=>md(d).getTime()>md(last26[0]).getTime());
+  const refs=[[7,'7 °C'],[2,'2 °C']].map(([v,l])=>`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${W-R}" y="${y(v)-2}" text-anchor="end">${l}</text>`).join('');
+  const months=[['0915','Sep 15'],['1001','Oct 1'],['1015','Oct 15'],['1101','Nov 1']].filter(([d])=>md(d).getTime()<=t1).map(([d,l])=>`<text x="${x(d)}" y="${H-B+11}" text-anchor="middle">${l}</text>`).join('');
+  const lg=`<line x1="${L}" x2="${L+16}" y1="${H-5}" y2="${H-5}" stroke="var(--fg)" stroke-width="1.8"/><text class="lg" x="${L+19}" y="${H-2}">2026 nightly low</text><line x1="${L+112}" x2="${L+128}" y1="${H-5}" y2="${H-5}" stroke="var(--muted)" stroke-width="1.8"/><text class="lg" x="${L+131}" y="${H-2}">2025 same dates</text><line x1="${L+222}" x2="${L+238}" y1="${H-5}" y2="${H-5}" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="3 3"/><text class="lg" x="${L+241}" y="${H-2}">forecast</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Nightly lows this year, last year and forecast">${refs}<line class="ax" x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}"/>${months}<path d="${path(Wx.lows_2025)}" fill="none" stroke="var(--muted)" stroke-width="1.6" opacity=".9"/><path d="${path(Wx.lows_2026)}" fill="none" stroke="var(--fg)" stroke-width="1.8"/><path d="${path([last26,...fc])}" fill="none" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="3 3"/><text x="6" y="${T+4}" transform="rotate(-90 6 ${T+4})" text-anchor="end">°C</text>${lg}</svg>`;
 }
 // drag the sheet (phone)
 let drag=null; const sheet=$('#sheet'); const grip=sheet.querySelector('.grip');

@@ -109,6 +109,8 @@ def main(outdir, docs):
               open(os.path.join(data, "boundaries.geojson"), "w"))
     dump(site, os.path.join(data, "site.json"))
     tpl = os.path.join(os.path.dirname(__file__), "templates")
+    mdir = os.path.join(data, "method"); os.makedirs(mdir, exist_ok=True)
+    shutil.copy(os.path.join(tpl, "method.html"), os.path.join(mdir, "method.html"))
     html = open(os.path.join(tpl, "index.html")).read().replace("{{LEAFLET_CSS}}", open(os.path.join(tpl, "leaflet.css")).read()).replace("{{LEAFLET_JS}}", open(os.path.join(tpl, "leaflet.js")).read())
     open(os.path.join(docs, "index.html"), "w").write(html)
     tot = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(data) for f in fs)

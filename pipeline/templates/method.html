@@ -1,0 +1,194 @@
+<div class="mtoolbar">
+  <nav class="mnav" aria-label="Sections"></nav>
+  <div class="mtools"><button class="btn" data-m="expand">Expand all</button><button class="btn" data-m="collapse">Collapse all</button></div>
+</div>
+<p class="mintro">This page explains how the map is made, step by step, using one real place as a running example: the <b>Washington Park Arboretum</b>, a 1.2 km square on the 10 m Seattle grid. Every figure below is computed from the same data the map uses. Pin a section to keep it at the top while you read the others.</p>
+
+<details class="msec" id="m-overview" open>
+<summary><span class="mnum">1</span><span class="mtitle">What the map answers, and what feeds it</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>The map answers three questions for any patch of trees in King County:</p>
+<ol>
+  <li><b>How much fall colour is there right now?</b> Measured from the most recent clear satellite pass.</li>
+  <li><b>How has it changed week by week?</b> Measured from cloud-free weekly composites since early September.</li>
+  <li><b>When will it peak?</b> Predicted from how the same trees behaved in the last three autumns, adjusted for this year's progress and the weather ahead.</li>
+</ol>
+<p>Each answer comes from a different source, and the page keeps them visibly separate: observations are solid, predictions are dashed and tagged <span class="fctag">forecast</span>.</p>
+<div class="tablewrap"><table>
+<tr><th>Input</th><th>What it contributes</th><th>Resolution</th><th>Refresh</th></tr>
+<tr><td>Sentinel-2 satellite imagery (ESA Copernicus)</td><td>Colour, greenness and leaf condition for every 10 m pixel</td><td>10 m, 10 spectral bands</td><td>A pass every 2 to 3 days; clear ones less often</td></tr>
+<tr><td>The same imagery for autumn 2023, 2024, 2025</td><td>Each pixel's typical colour curve and peak week</td><td>80 m</td><td>Once per year</td></tr>
+<tr><td>NOAA GHCN weather stations</td><td>Nightly lows, cold-night counts, first frost</td><td>Point</td><td>Daily, 2 to 4 days behind</td></tr>
+<tr><td>NOAA HRRR analysis</td><td>Nightly lows across the county for the days after the station feed</td><td>3 km</td><td>Hourly</td></tr>
+<tr><td>NOAA GFS forecast</td><td>Lows, gusts and rain for the next 7 days</td><td>25 km</td><td>Every 6 hours</td></tr>
+<tr><td>ESA WorldCover, Copernicus DEM</td><td>Land cover and elevation</td><td>10 m, 30 m</td><td>Static</td></tr>
+<tr><td>Overture Maps</td><td>Roads and water for orientation</td><td>Vector</td><td>Monthly</td></tr>
+</table></div>
+<p class="mnote"><b>Pipeline in one line.</b> Read every pass → remove clouds → compute colour measures per pixel → build weekly composites and a "Now" layer → classify stage → compare with past autumns → adjust for weather → group into hotspots and score them.</p>
+</div></details>
+
+<details class="msec" id="m-imagery">
+<summary><span class="mnum">2</span><span class="mtitle">The satellite imagery</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>Sentinel-2 is a pair of European satellites that photograph the same ground every two to three days. Each image has ten useful <b>bands</b>: a band is a photograph taken through one colour filter. Three bands are the visible blue, green and red that a camera sees. The others see light our eyes cannot: three narrow bands on the <b>red edge</b>, where healthy leaves switch from absorbing light to reflecting it; two in the <b>near infrared</b>, which leaves reflect strongly; and two in the <b>shortwave infrared</b>, which water in leaves absorbs.</p>
+<p>The map reads every pass over the two Sentinel-2 tiles that cover King County, at the native 10 m for Seattle and 20 m for the county. A 10 m pixel is about the size of a large tree crown, so a street tree is one or two pixels and a park canopy is hundreds.</p>
+<figure class="mfig"><div class="mgrid" data-fig="weeks"></div>
+<figcaption><b>Figure 1.</b> The reference area in true colour, one cloud-free composite per week, plus the "Now" layer. Black is where no clear pixel existed that week. The week of Oct 6 to 12 had only one usable pass over the Arboretum and it was mostly cloud, which is why the "Now" layer fills from the newest clear pixel rather than from the newest pass.</figcaption></figure>
+<p class="mnote"><b>Why composites.</b> Western Washington is cloudy. A single pass is rarely clean, so each week's layer is the per-pixel <b>median</b> of all clear observations that week. The median ignores a stray hazy value in a way an average cannot.</p>
+</div></details>
+
+<details class="msec" id="m-clouds">
+<summary><span class="mnum">3</span><span class="mtitle">Removing clouds, shadow and haze</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>Every pixel of every pass is kept or discarded before any colour is measured. A pixel is discarded when any of these is true:</p>
+<ol>
+  <li>The scene classification that ships with each image labels it cloud, cirrus, cloud shadow, snow, or no data.</li>
+  <li>It is bright in blue (reflectance above 0.22), which vegetation never is, or bright in both blue and shortwave infrared, a cloud signature.</li>
+  <li>It is very dark in near infrared, which marks a shadow.</li>
+  <li>It is leafy by its greenness index but unexpectedly bright in blue, which marks thin haze over trees.</li>
+</ol>
+<p>The cloud mask is then grown by two pixels so cloud edges, which are half cloud and half ground, are removed too.</p>
+<figure class="mfig"><div class="mgrid two" data-fig="mask"></div>
+<figcaption><b>Figure 2.</b> One raw pass over the reference area (left) and the same pass after masking (right). Magenta marks pixels that were discarded. On this pass <span data-val="mask.masked_fraction"></span> of the area was removed. Those pixels take their values from another pass that week, or from the previous week if none was clear.</figcaption></figure>
+<p>The share of tree area that was cloud-free is shown under every week in the scrubber and in the status line, so a thin week is never mistaken for a quiet one.</p>
+</div></details>
+
+<details class="msec" id="m-spectra">
+<summary><span class="mnum">4</span><span class="mtitle">Measuring colour in the spectrum</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>A leaf turning colour changes how it reflects light across all ten bands, not just the visible ones. The chart below shows real reflectance from two pixels in the Arboretum: one deciduous tree, measured in mid-September and again in early October, and one conifer, measured on the same dates.</p>
+<figure class="mfig"><div class="mchart" data-chart="spectra"></div>
+<figcaption><b>Figure 3.</b> Reflectance by band for a deciduous tree pixel and a conifer pixel, September versus October. The deciduous pixel reflects more red and less red-edge and near-infrared light in October: chlorophyll is breaking down and carotenoids (yellow, orange) now dominate. The conifer barely changes. Reflectance is the fraction of sunlight bounced back; 0.05 is dark, 0.4 is bright.</figcaption></figure>
+<p>Four measures are computed from these bands for every clear pixel. Each targets one physical change:</p>
+<div class="tablewrap"><table>
+<tr><th>Measure</th><th>Built from</th><th>What it tracks</th><th>Deciduous example, Sept → Now</th><th>Conifer example</th></tr>
+<tr><td><b>Hue</b> (degrees)</td><td>red, green, blue</td><td>The colour itself: about 110° is leaf green, 60° yellow, 30° orange, 10° red</td><td data-val="idx.deciduous.hue"></td><td data-val="idx.conifer.hue"></td></tr>
+<tr><td><b>PSRI</b>, plant senescence reflectance index</td><td>(red − blue) ÷ red-edge 2</td><td>The ratio of carotenoid to chlorophyll pigments, which rises as leaves senesce</td><td data-val="idx.deciduous.psri"></td><td data-val="idx.conifer.psri"></td></tr>
+<tr><td><b>NDVI</b>, normalized difference vegetation index</td><td>(near-IR − red) ÷ (near-IR + red)</td><td>Greenness and leaf density; falls as leaves lose chlorophyll and drop</td><td data-val="idx.deciduous.ndvi"></td><td data-val="idx.conifer.ndvi"></td></tr>
+<tr><td><b>NDMI</b>, normalized difference moisture index</td><td>(near-IR − shortwave-IR) ÷ (near-IR + shortwave-IR)</td><td>Water in the canopy; drops sharply once leaves are gone</td><td data-val="idx.deciduous.ndmi"></td><td data-val="idx.conifer.ndmi"></td></tr>
+</table></div>
+<p>The formulas, as implemented:</p>
+<pre class="mcode">hue, chroma = HSV(red, green, blue)
+psri = (red - blue) / rededge2
+ndvi = (nir - red) / (nir + red)
+ndmi = (nir08 - swir16) / (nir08 + swir16)</pre>
+<p class="mnote"><b>Why not just use the visible colour?</b> Hue alone cannot tell a yellowing maple from a yellow lawn, and it says nothing about whether leaves are still on the tree. PSRI confirms that the yellow comes from pigment change in leaves, and NDVI and NDMI say whether the canopy is still there.</p>
+</div></details>
+
+<details class="msec" id="m-score">
+<summary><span class="mnum">5</span><span class="mtitle">From measurements to a colour score and a stage</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>Trees differ. A dark conifer and a bright maple have different hue and PSRI even in August, so the map does not compare pixels with a fixed threshold. Instead it compares each pixel with <b>itself in early September</b>, before anything turned. That baseline is the median of the clear passes from Sep 1 to 14.</p>
+<figure class="mfig"><div class="mgrid three" data-fig="indexmaps"></div>
+<figcaption><b>Figure 4.</b> Hue, PSRI and NDVI over the reference area at the September baseline (top row) and now (bottom row). Hue is drawn on the map's colour scale; PSRI and NDVI in a neutral teal and green so they are not confused with fall colour. The ravines and the maple collections shift most; the conifer groves and lawns stay put.</figcaption></figure>
+<p>The <b>colour score</b> combines the two changes that matter, scaled so that 0 is the pixel's own September state and 1 is fully turned:</p>
+<pre class="mcode">hue_shift   = clip((hue_sept - hue_now) / 50°, 0, 1)      # green → yellow is about 50°
+psri_rise   = clip((psri_now - psri_sept) / 0.15, 0, 1)
+leaves_on   = clip((ndvi_now - 0.15) / 0.15, 0, 1)       # fades out once leaves are gone
+colour      = (0.6 × hue_shift + 0.4 × psri_rise) × leaves_on</pre>
+<p>The score is then read as a <b>stage</b>, which is what the map's stage layer and the pills show:</p>
+<div class="tablewrap"><table>
+<tr><th>Stage</th><th>Rule</th><th>Reads as</th></tr>
+<tr><td><span class="pill s1">green</span></td><td>colour score below 0.15</td><td>No visible change yet, or an evergreen</td></tr>
+<tr><td><span class="pill s2">turning</span></td><td>0.15 to 0.45</td><td>First yellow in the crown; mixed green and colour</td></tr>
+<tr><td><span class="pill s3">peak colour</span></td><td>0.45 or more, with NDVI still 0.30 or more</td><td>Most of the crown has turned and the leaves are still on</td></tr>
+<tr><td><span class="pill s4">past peak</span></td><td>NDVI has fallen 0.30 below the baseline and is under 0.35</td><td>Leaves mostly down</td></tr>
+</table></div>
+<figure class="mfig"><div class="mgrid two" data-fig="scorestage"></div>
+<figcaption><b>Figure 5.</b> Colour score (left) and stage (right) for the reference area now. In the Arboretum, <span data-val="stagefrac"></span>.</figcaption></figure>
+<p class="mnote"><b>Where the thresholds come from.</b> They were set by reading the score at places with known behaviour: conifer stands on Tiger Mountain stay under 0.1 all autumn, the cottonwood galleries on the Sammamish River pass 0.45 in late September, and the Arboretum's maple collections sit between. They are judgement calls and the only tunable part of the method.</p>
+</div></details>
+
+<details class="msec" id="m-decid">
+<summary><span class="mnum">6</span><span class="mtitle">Telling deciduous trees from conifers and lawns</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>Half of King County's tree cover is evergreen and never turns. Counting it would drag every percentage down and fill the hotspot ranking with places that cannot change. The map therefore estimates, for every pixel, how likely it is to be deciduous.</p>
+<ol>
+  <li><b>Vegetation first.</b> A pixel qualifies only if its September NDVI is above 0.40 and the land-cover map does not call it cropland or water.</li>
+  <li><b>History.</b> The same colour score was computed for autumn 2023, 2024 and 2025. A pixel whose score rose by at least 0.12 in a past autumn, or whose NDVI dropped by at least 0.12, is probably deciduous. The more it moved, the higher the likelihood.</li>
+  <li><b>This year overrides.</b> A pixel that has already turned this year (score above 0.35) is deciduous regardless of history.</li>
+</ol>
+<figure class="mfig"><div class="mgrid two" data-fig="decid"></div>
+<figcaption><b>Figure 6.</b> Vegetated pixels (left) and deciduous likelihood (right), darker teal meaning more likely to turn. The blocky pattern comes from the 80 m history layer. Percentages on this page count only pixels with a likelihood above 0.25.</figcaption></figure>
+<p>Lawns pass the vegetation test but fail the history test: they brown and green with rain, not with the season, and their past-autumn colour score stays near zero. Cropland is excluded outright because harvested fields look like leaf-off trees.</p>
+</div></details>
+
+<details class="msec" id="m-pheno">
+<summary><span class="mnum">7</span><span class="mtitle">Predicting peak from past autumns</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>Trees in one place peak at about the same time every year, give or take a couple of weeks for weather. That regularity is called <b>phenology</b>, and it is what the prediction leans on.</p>
+<ol>
+  <li>For each pixel, the colour score for every week of autumn 2023, 2024 and 2025 is averaged into one <b>typical curve</b>: how colour usually builds and fades at that spot, and which week it usually peaks.</li>
+  <li>This year's latest score is placed on that curve. If the Arboretum normally reaches a score of 0.25 in the third week of October and it is there on Oct 8, this year is running about two weeks ahead. That difference is the <b>phase offset</b>.</li>
+  <li>The typical peak week, shifted by the offset, is the predicted peak.</li>
+</ol>
+<figure class="mfig"><div class="mchart" data-chart="phenology"></div>
+<figcaption><b>Figure 7.</b> The Arboretum's typical colour curve from the last three autumns (grey), this year's weekly observations (solid dots, hollow where the week was mostly cloud), and the forecast weeks (dashed). The typical peak falls around <span data-val="pheno.peak"></span>; the offset moves this year's predicted peak relative to it.</figcaption></figure>
+<p class="mnote"><b>Confidence.</b> The prediction is trusted more when the offset is small and when the place has a strong, repeatable autumn in the history. Confidence is shown as a percentage in every card and as fading in the forecast layers. Where the history is weak (young plantings, places cloudy every past October) the timing is a guess and the page says so.</p>
+</div></details>
+
+<details class="msec" id="m-weather">
+<summary><span class="mnum">8</span><span class="mtitle">Weather: cold nights and leaf-stripping storms</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>Two weather effects matter for timing, and the map handles each simply.</p>
+<p><b>Cold nights accelerate colour.</b> Nights below about 7 °C speed chlorophyll breakdown, and nights near freezing push trees at the turning stage to peak within days. The map counts forecast nights at or below 5 °C in the next week and pulls the predicted peak earlier by half a day per cold night, with one or two extra cold nights assumed for places above roughly 300 m and 500 m of elevation. The adjustment is capped at four days.</p>
+<p><b>Wind and heavy rain end the show.</b> A gust over 40 mph or a day with more than 25 mm of rain strips trees that are already at peak. The page flags this as leaf-drop risk from the 7-day forecast rather than changing the prediction, because the effect depends on whether a tree has peaked yet.</p>
+<figure class="mfig"><div class="mchart" data-chart="weather"></div>
+<figcaption><b>Figure 8.</b> Nightly lows at Seattle-Tacoma Airport since Sep 15 this year (dark) and on the same dates in 2025 (grey), with the next 7 days from the GFS forecast (dashed). Reference lines at 7 °C and 2 °C. Nights at or below 7 °C so far: <span data-val="wx.nights"></span>.</figcaption></figure>
+<p>Station data arrives two to four days late, so the days in between are filled from the HRRR weather model's hourly analysis, which also gives a county-wide view that catches the colder valleys and ridges.</p>
+</div></details>
+
+<details class="msec" id="m-forecast">
+<summary><span class="mnum">9</span><span class="mtitle">Forecast weeks and the timing layer</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>The dashed steps after "Now" in the scrubber show the <b>predicted stage</b> of every pixel in a future week. They are built from the same typical curve as the peak prediction: the curve is read at that week's date, shifted by the pixel's phase offset and by the cold-night adjustment, and scaled to the pixel's own amplitude. Two rules keep the forecast honest:</p>
+<ul>
+  <li>Colour never retreats before its predicted peak. If a pixel already shows more colour than its curve predicts, the forecast keeps what is observed.</li>
+  <li>A pixel is forecast as past peak once it is more than 12 days beyond its typical peak, or already reads as leaf-off now.</li>
+</ul>
+<p>The forecast layers use the same four stage colours as the observed weeks, so nothing new has to be learned, and they fade where confidence is low. Every place where a forecast appears carries a dashed <span class="fctag">forecast</span> tag.</p>
+<p>The <b>Predicted peak timing</b> layer folds the same prediction into five chronological classes: past peak (leaf-off brown), peak now (darkest teal), next two weeks, two to four weeks, and later. It uses one cool hue so that orange on the map only ever means fall colour.</p>
+</div></details>
+
+<details class="msec" id="m-hotspots">
+<summary><span class="mnum">10</span><span class="mtitle">Hotspots, destinations and the worth-a-visit score</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<p>Individual pixels are too small to visit. The map groups them.</p>
+<ol>
+  <li>Deciduous pixels are averaged into cells of 100 m in Seattle and 200 m elsewhere. A cell's score is its mean colour score, scaled down when fewer than a quarter of its pixels are deciduous trees.</li>
+  <li>Cells in the top tenth county-wide, with at least 20% tree cover, are grouped into contiguous <b>hotspots</b>. Outlines are smoothed so they read as places rather than as grid cells.</li>
+  <li>Each hotspot is labelled by the nearest named destination within 600 m, else its Seattle neighbourhood, else the nearest town, and tagged <b>canopy</b> or <b>meadow / shrub</b> from the land-cover map.</li>
+</ol>
+<figure class="mfig"><div class="mgrid two" data-fig="cells"></div>
+<figcaption><b>Figure 9.</b> Colour score now (left) and the same area aggregated to 100 m cells (right). Cells drawn grey have too little tree cover to count.</figcaption></figure>
+<p>Named <b>destinations</b> are scored on the pixels inside their own footprint, a circle sized to the place, so a park's card reflects the park and not the streets around it.</p>
+<p>The <b>worth-a-visit score</b> ranks places; it is not a measurement. It weights colour intensity 45%, timing against the predicted peak 20% (full marks within a week of peak), public access 20% (park land, or within 1.5 km of neighbourhoods), and size 15% (log of area, so a 400 ha valley does not swamp a 4 ha garden). A score of 90 means "go this week"; 50 means "worth it if you are nearby".</p>
+</div></details>
+
+<details class="msec" id="m-limits">
+<summary><span class="mnum">11</span><span class="mtitle">Reading uncertainty and known limits</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<ul>
+  <li><b>A pixel mixes trees.</b> At 10 m, one pixel can hold a red maple, a cedar and a roof. The score is the blend, so a vivid single tree in a conifer stand reads as "turning", not "peak".</li>
+  <li><b>Old pixels in the Now layer.</b> A pixel under cloud for two weeks shows its last clear state. The status line gives the oldest date in the Now layer; the map does not currently hatch stale pixels.</li>
+  <li><b>Coarse history.</b> The typical curves are 80 m, so timing is a neighbourhood estimate. Two adjacent 10 m pixels share the same prediction even when one is an oak and the other an ash.</li>
+  <li><b>Thresholds are judgement calls.</b> The stage boundaries were tuned by eye against known places and will shift as the season gives more evidence.</li>
+  <li><b>Weather is regional.</b> One station and a 3 km model cannot see a frost pocket in a ravine.</li>
+  <li><b>Reports are quoted, not verified.</b> The optional reports layer shows dated items from local sources with links, and labels model estimates as such.</li>
+</ul>
+<p>Treat the observed layers as measurements with the stated cloud-free share, and the forecast as a guide that improves with every clear pass.</p>
+</div></details>
+
+<details class="msec" id="m-sources">
+<summary><span class="mnum">12</span><span class="mtitle">Data sources and credits</span><button class="mpin" aria-label="Pin section" title="Pin to top">⌖</button></summary>
+<div class="mbody">
+<ul>
+  <li>Copernicus Sentinel-2 Level-2A surface reflectance, European Space Agency; cloud-optimized copies by Element 84 on the AWS Open Data registry.</li>
+  <li>ESA WorldCover 2021 land cover, 10 m. Copernicus DEM GLO-30 elevation.</li>
+  <li>NOAA GHCN-Daily station observations, NOAA HRRR analyses and NOAA GFS forecasts, all from the AWS Open Data registry.</li>
+  <li>Roads and water from Overture Maps Foundation, which builds on OpenStreetMap contributors.</li>
+  <li>Seattle city limits, neighbourhoods and parks from the seattleio boundaries project; King County outline from the US Census.</li>
+  <li>Senescence index after Merzlyak et al. (1999), <i>Physiologia Plantarum</i>; NDVI after Rouse et al. (1974).</li>
+</ul>
+<p class="muted">Generated <span data-val="generated"></span>. Pipeline source: the <code>pipeline/</code> folder of the repository.</p>
+</div></details>
