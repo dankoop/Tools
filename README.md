@@ -29,7 +29,8 @@ docs/                the static site (GitHub Pages: Settings -> Pages -> main /d
 * **Imagery.** Every Sentinel-2 L2A scene over MGRS tiles 10TET and 10TFT from Sept 1 onward,
   read directly from `s3://sentinel-cogs` (no API key). Seattle at 10 m, King County at 20 m.
   Clouds, cirrus, shadow and snow masked per pixel from the SCL band plus blue/SWIR brightness
-  tests, dilated 2 px. Weekly layers are per-pixel medians of clear observations; "Now" is the
+  tests, dilated 2 px, then a temporal test: a pixel whose blue reflectance sits more than 0.04
+  above its own early-September median is residual cloud or haze and is dropped too. Weekly layers are per-pixel medians of clear observations; "Now" is the
   latest clear observation, back-filled from the last two weeks.
 * **Spectral colour.** Hue and chroma from red/green/blue reflectance; PSRI
   `(red - blue) / red-edge-2` for senescence; NDVI and red-edge chlorophyll index for greenness
@@ -77,6 +78,9 @@ for r in seattle county; do
   python analyze.py region $r $FALLCOLOR_CACHE/s2_$r $FALLCOLOR_CACHE/out/comp_$r.npz $FALLCOLOR_CACHE/out/pheno.npz $FALLCOLOR_CACHE/out
   python render.py $r $FALLCOLOR_CACHE/out/analysis_$r.npz $FALLCOLOR_CACHE/out/render
 done
+# sharp 10 m colour bases: latest clear pixel (the greyscale default) and the cloud-free Sep 16 "before" image
+python base_imagery.py $FALLCOLOR_CACHE/scenes_2026.json $FALLCOLOR_CACHE/out --min-date 2026-09-15 --max-cloud 60
+python base_imagery.py $FALLCOLOR_CACHE/scenes_2026.json $FALLCOLOR_CACHE/out --min-date 2026-09-01 --dates 2026-09-16,2026-09-08 --name base_sep16 --label "Sep 16 (before)"
 python export_site.py $FALLCOLOR_CACHE/out ../docs
 ```
 

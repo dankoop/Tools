@@ -113,12 +113,17 @@ def main(outdir, docs):
     dump(dict(gfs=w["gfs"], gfs_cycle=w["gfs_cycle"], points=w["points"], hrrr=w["hrrr"]), os.path.join(data, "weather.json"))
     shutil.copy(os.path.join(os.path.dirname(__file__), "data", "places.json"), os.path.join(data, "places.json"))
     # sharp 10 m base tiles and Overture context (roads, water)
-    bsrc = os.path.join(outdir, "base")
-    if os.path.exists(os.path.join(bsrc, "base.json")):
-        bdst = os.path.join(data, "base"); os.makedirs(bdst, exist_ok=True)
+    # every out/base* directory with a base.json becomes a selectable base; "base" (latest clear pixel) comes first
+    site["bases"] = []
+    for name in sorted(d for d in os.listdir(outdir) if d.startswith("base") and os.path.exists(os.path.join(outdir, d, "base.json"))):
+        bsrc = os.path.join(outdir, name); bdst = os.path.join(data, name); os.makedirs(bdst, exist_ok=True)
         for f in os.listdir(bsrc):
             shutil.copy(os.path.join(bsrc, f), bdst)
-        site["base"] = json.load(open(os.path.join(bsrc, "base.json")))
+        meta = json.load(open(os.path.join(bsrc, "base.json"))); meta["key"] = name; meta["dir"] = name
+        site["bases"].append(meta)
+    site["bases"].sort(key=lambda b: (b["key"] != "base", b["key"]))
+    if site["bases"]:
+        site["base"] = site["bases"][0]
     csrc = os.path.join(C.SCRATCH, "context")
     if os.path.exists(csrc):
         cdst = os.path.join(data, "context"); os.makedirs(cdst, exist_ok=True)

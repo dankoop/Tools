@@ -35,6 +35,7 @@ def hue_chroma(r, g, b):
     return h.astype(np.float32), ((mx - mn) / (mx + 1e-6)).astype(np.float32)
 
 INDEX_NAMES = ["ndvi", "psri", "cire", "ndmi", "hue", "chroma", "r", "g", "b"]
+TEMPORAL_BLUE_LIFT = 0.04   # blue reflectance rise over a pixel's own September baseline that marks residual cloud or haze
 
 def indices(bands, valid):
     """Return dict of float32 arrays (NaN where invalid)."""
@@ -110,6 +111,7 @@ def composite(stackdir, out_path, mode):
     nobs_total = np.zeros((H, W), np.uint8)
     last_date = dt.date.fromisoformat(dates[-1])
     vel = {k: np.zeros((H, W), np.float64) for k in ("n", "st", "sy", "sty", "stt")}
+    blue0 = None          # per-pixel baseline blue reflectance (set after the first bin) for the temporal cloud test
     for lab, b0, b1 in bins:
         sel = [f for f, d in zip(files, dates) if b0 <= d[5:] <= b1]
         if not sel:
@@ -120,6 +122,17 @@ def composite(stackdir, out_path, mode):
             if v.sum() == 0:
                 continue
             ix = indices(z["bands"], v)
+            if blue0 is not None:
+                # temporal cloud test: a clear pixel's blue reflectance barely changes through autumn; cloud,
+                # cloud edge and haze lift it. Compare with this pixel's own early-September median.
+                with np.errstate(all="ignore"):
+                    lifted = v & np.isfinite(blue0) & (ix["b"] > blue0 + TEMPORAL_BLUE_LIFT)
+                lifted = ndimage.binary_dilation(lifted, iterations=1) & v
+                if lifted.any():
+                    print(f"    {os.path.basename(f)[:10]}: temporal test removed {100 * lifted.sum() / max(v.sum(), 1):.1f}% of clear pixels", flush=True)
+                    v = v & ~lifted
+                    for k in INDEX_NAMES:
+                        ix[k][lifted] = np.nan
             for k in INDEX_NAMES:
                 acc[k].append(ix[k])
             if mode == "current":
@@ -138,6 +151,8 @@ def composite(stackdir, out_path, mode):
             comp = {k: fast_nanmedian(np.stack(acc[k])) for k in INDEX_NAMES}
         comp["nobs"] = np.sum([np.isfinite(a) for a in acc["ndvi"]], axis=0).astype(np.uint8)
         res[lab] = comp
+        if blue0 is None and mode == "current":
+            blue0 = comp["b"]
         print(f"  bin {lab}: {len(sel)} scenes, coverage {np.isfinite(comp['ndvi']).mean():.3f}", flush=True)
     out = {"bins": np.array([b[0] for b in bins]), "bin_ranges": np.array([f"{b[1]}|{b[2]}" for b in bins]),
            "dates": np.array(dates), "transform": np.array(grid["transform"]), "res": grid["res"]}

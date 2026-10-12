@@ -21,9 +21,14 @@ os.environ.update(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", CPL_VSIL_CURL_ALLOWE
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("scenes"); ap.add_argument("outdir")
     ap.add_argument("--min-date", default="2026-09-15"); ap.add_argument("--max-cloud", type=float, default=60); ap.add_argument("--tile", type=int, default=2048)
-    a = ap.parse_args(); out = os.path.join(a.outdir, "base"); os.makedirs(out, exist_ok=True)
+    ap.add_argument("--dates", default=None, help="comma-separated pass dates to use (latest wins); default: every pass since --min-date")
+    ap.add_argument("--name", default="base", help="output subdirectory under OUTDIR (e.g. base_sep16)")
+    ap.add_argument("--label", default=None, help="human label for the base, stored in base.json")
+    a = ap.parse_args(); out = os.path.join(a.outdir, a.name); os.makedirs(out, exist_ok=True)
     T, W, H = region_grid("county", 10); res = 10
     scenes = [s for s in json.load(open(a.scenes)) if s["date"] >= a.min_date and s["cloud"] <= a.max_cloud and s["nodata"] < 90]
+    if a.dates:
+        want = set(a.dates.split(",")); scenes = [s for s in scenes if s["date"] in want]
     # latest first so the newest clear pixel wins
     dates = sorted({s["date"] for s in scenes}, reverse=True)
     rgb = np.zeros((3, H, W), np.uint16); filled = np.zeros((H, W), bool)
@@ -76,7 +81,8 @@ def main():
             name = f"tile_{r0 // a.tile}_{c0 // a.tile}.webp"
             Image.fromarray(np.moveaxis(t, 0, -1), "RGBA").save(os.path.join(out, name), "WEBP", quality=78, method=4)
             tiles.append(dict(file=name, bounds=[[s_, w_], [n_, e_]]))
-    json.dump(dict(res_m=res, width=dw, height=dh, tiles=tiles, dates=dates), open(os.path.join(out, "base.json"), "w"))
+    json.dump(dict(res_m=res, width=dw, height=dh, tiles=tiles, dates=dates, label=a.label or f"latest clear pixel, {dates[-1]} to {dates[0]}", filled=round(float(filled.mean()), 4)),
+              open(os.path.join(out, "base.json"), "w"))
     print(f"base: {dw}x{dh} px, {len(tiles)} tiles, {sum(os.path.getsize(os.path.join(out, t['file'])) for t in tiles) / 1e6:.1f} MB", flush=True)
 
 if __name__ == "__main__":

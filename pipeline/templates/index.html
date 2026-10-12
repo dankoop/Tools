@@ -216,7 +216,7 @@ details summary{cursor:pointer;font-weight:600;margin:6px 0}
       <label><input type="checkbox" id="chk-reports"> Reports</label>
     </div>
     <div class="row">
-      <label>Base <select id="sel-base" aria-label="Base map"><option value="grey">Sentinel-2 10 m, greyscale</option><option value="rgb">Sentinel-2 10 m, colour</option><option value="esri-grey">Esri World Imagery, greyscale (internet)</option><option value="esri">Esri World Imagery, colour (internet)</option><option value="osm">Street map (internet)</option><option value="none">Plain dark</option></select></label>
+      <label>Base <select id="sel-base" aria-label="Base map"><option value="grey">Sentinel-2 10 m, greyscale</option><option value="esri-grey">Esri World Imagery, greyscale (internet)</option><option value="esri">Esri World Imagery, colour (internet)</option><option value="osm">Street map (internet)</option><option value="none">Plain dark</option></select></label>
     </div>
     <label><input type="range" id="opacity" min="20" max="100" value="85" aria-label="Overlay opacity" style="accent-color:var(--ink)"> overlay opacity</label>
   </div>
@@ -316,8 +316,13 @@ map.fitBounds((hasCounty&&desktop())?countyB:(site.regions.seattle||site.regions
 map.getPane('labelpane').style.pointerEvents='none';
 let tileBase=null; const overlays={};
 const imgUrl=(r,f)=>`data/${r}/${f}`;
-const baseTiles=L.layerGroup();   // sharp 10 m Sentinel-2 composite, cut into <=2048 px pieces
-for(const t of ((site.base||{}).tiles||[])) baseTiles.addLayer(L.imageOverlay(`data/base/${t.file}`,t.bounds,{pane:'basepane',interactive:false,className:'base-grey'}));
+// sharp 10 m Sentinel-2 bases, cut into <=2048 px pieces. BASES[0] is the latest clear pixel per pixel (used for the greyscale
+// default); any further entries (e.g. the Sep 16 "before" image) are offered as colour bases so before/after needs no overlay.
+const BASES=(site.bases&&site.bases.length)?site.bases:(site.base?[Object.assign({key:'base',dir:'base',label:'latest'},site.base)]:[]);
+const baseGroups={};
+for(const b of BASES){ const g=L.layerGroup(); for(const t of (b.tiles||[])) g.addLayer(L.imageOverlay(`data/${b.dir}/${t.file}`,t.bounds,{pane:'basepane',interactive:false,className:'base-grey'})); baseGroups[b.key]=g; }
+{ const selB=$('#sel-base'); const anchor=selB.querySelector('option[value="esri-grey"]');
+  for(const b of BASES){ const o=document.createElement('option'); o.value='rgb:'+b.key; o.textContent=`Sentinel-2 10 m colour, ${b.label||b.key}`; selB.insertBefore(o,anchor); } }
 for(const r of regions){
   overlays[r]=L.imageOverlay('',site.regions[r].bounds,{pane:r+'pane',opacity:.85,interactive:false}).addTo(map);
 }
@@ -379,14 +384,18 @@ function buildStepper(){
   let timer=null; $('#btn-play').onclick=()=>{ if(timer){clearInterval(timer);timer=null;$('#btn-play').textContent='▶';return} $('#btn-play').textContent='❚❚'; timer=setInterval(()=>{week=(week+1)%total;st.querySelectorAll('.step').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.w===week)));applyLayer()},1400) };
 }
 buildStepper();
-let baseMode=store.get('base')||'grey';
+let baseMode=store.get('base')||'grey'; if(baseMode==='rgb') baseMode='rgb:base';
+if(!$('#sel-base').querySelector(`option[value="${baseMode}"]`)) baseMode='grey';
 $('#sel-base').value=baseMode;
 function applyBase(){
   baseMode=$('#sel-base').value; store.set('base',baseMode);
   if(tileBase){map.removeLayer(tileBase);tileBase=null}
-  const s2=baseMode==='grey'||baseMode==='rgb';
-  if(s2){ baseTiles.addTo(map); baseTiles.eachLayer(l=>{const el=l.getElement(); if(el) el.classList.toggle('base-grey',baseMode==='grey')}); }
-  else map.removeLayer(baseTiles);
+  const s2=baseMode==='grey'||baseMode.startsWith('rgb:');
+  const key=baseMode==='grey'?(BASES[0]||{}).key:baseMode.slice(4);
+  for(const k in baseGroups){
+    if(s2&&k===key){ baseGroups[k].addTo(map); baseGroups[k].eachLayer(l=>{const el=l.getElement(); if(el) el.classList.toggle('base-grey',baseMode==='grey')}); }
+    else map.removeLayer(baseGroups[k]);
+  }
   if(baseMode==='osm'||baseMode.startsWith('esri')){
     const esri=baseMode.startsWith('esri');
     tileBase=L.tileLayer(esri?'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}':'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -555,7 +564,7 @@ function render(){
     <p><b>Phenology.</b> Autumn 2023, 2024 and 2025 were processed the same way at 80 m. Each pixel gets a typical colour curve, peak week and autumn amplitude; small amplitude means evergreen. This year's progress is matched to that curve to estimate how many days ahead of or behind a normal year the spot is, which gives the predicted peak date, pulled earlier when cold nights are forecast and more so at elevation.</p>
     <p><b>Weather.</b> Nightly lows and cold-night counts come from NOAA GHCN stations (airports, SNOTEL) compared with the same dates in prior years, HRRR 3 km analyses fill the days after the station feed, and the 7-day outlook is the latest GFS run. Cold nights accelerate colour; strong wind or heavy rain after peak ends the show.</p>
     <p><b>Hotspots and scores.</b> Tree pixels are aggregated to 100 m cells in Seattle and 200 m cells elsewhere; the top tenth by colour score are grouped into contiguous hotspots and labelled by the nearest destination, neighbourhood or town. “Canopy” hotspots are mostly tree cover; “meadow / shrub” ones are huckleberry and mountain-ash slopes. The worth-a-visit score weights colour intensity 45%, timing against the predicted peak 20%, public access 20% and size 15%; it ranks places, it is not a measurement.</p>
-    <p><b>Orientation.</b> The base is a 10 m Sentinel-2 true-colour composite of the clearest recent passes (latest clear pixel wins), sharpened and shown in greyscale so colour on the map is always data. Roads and water outlines come from Overture Maps; major roads show county-wide and residential streets appear inside Seattle from zoom 13. Esri World Imagery and OpenStreetMap bases are offered for the GitHub Pages copy, where outside tiles can load.</p>
+    <p><b>Orientation.</b> The base is the latest clear 10 m Sentinel-2 pixel (the cloud-free Oct 11 pass over Seattle and the western county, older passes where that one was cloudy), sharpened and shown in greyscale so colour on the map is always data. The Base menu also offers each Sentinel-2 image in colour, including the cloud-free Sep 16 pass as a "before" picture, so the change the colour layer reports can be checked against the imagery itself with the overlay turned off. Roads and water outlines come from Overture Maps; major roads show county-wide and residential streets appear inside Seattle from zoom 13. Esri World Imagery and OpenStreetMap bases are offered for the GitHub Pages copy, where outside tiles can load.</p>
     <p><b>Colour on this page.</b> The green–yellow–orange–red scale is used only to show colour state, on the map, in the stage pills and at the end of each sparkline. The timing layer uses one cool hue (plus leaf-off brown for past peak) and the diagnostic layers use greys and teals, so orange never means anything but fall colour. The imagery base is greyscale by default for the same reason.</p>
     <p><b>Limits.</b> A 10 m pixel mixes several trees; street trees under cloud for two weeks show their last clear state; the phenology baseline is coarse, so timing is a guide. Reports are quoted from and linked to their sources.</p>
     <p class="muted">Generated ${site.generated}. Pipeline code: the <code>pipeline/</code> folder of this repository.</p></div>`;
